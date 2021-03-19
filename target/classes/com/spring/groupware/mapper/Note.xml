@@ -1,0 +1,1061 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="note">
+
+   <!-- 전체 사원리스트 불러오기 -->
+   <select id="findEmpListAll" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+		select emp_name, p.position_name, nvl(D.dept_name, ' ') as dept_name ,emp_no, E.fk_dept_no
+		from tbl_employee E left join tbl_position_sort P
+		on E.fk_position_no = P.position_no
+		left join tbl_dept_name D
+		on E.fk_dept_no = D.dept_no
+		order by fk_position_no desc
+   </select>
+   
+   <!-- 해당 부서 사원리스트 불러오기 -->
+   <select id="findEmpList" parameterType="HashMap" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+		select emp_name, p.position_name, nvl(D.dept_name, ' ') as dept_name ,emp_no, E.fk_dept_no
+		from tbl_employee E left join tbl_position_sort P
+		on E.fk_position_no = P.position_no
+		left join tbl_dept_name D
+		on E.fk_dept_no = D.dept_no
+		
+		<if test="fk_dept_no != null">
+			where E.fk_dept_no = #{fk_dept_no}
+		</if>
+		
+		order by fk_position_no desc
+   </select>
+   
+   <!-- 검색어에 따른 사원리스트 불러오기 -->
+   <select id="empSearchList" parameterType="HashMap" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+		
+		select emp_name, p.position_name, nvl(D.dept_name, ' ') as dept_name ,emp_no, E.fk_dept_no
+		from tbl_employee E left join tbl_position_sort P
+		on E.fk_position_no = P.position_no
+		left join tbl_dept_name D
+		on e.fk_dept_no = d.dept_no
+		where emp_name like '%' || #{searchWord} || '%' 
+		order by fk_position_no desc
+   </select>
+   
+   <!-- 첨부파일 없는 쪽지쓰기 -->
+   <insert id="write" parameterType="com.spring.groupware.jieun.model.NoteVO">
+   		insert into tbl_note(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+   							 note_content, note_important, note_reservation_status, note_read_status, note_write_date)
+   		values(seq_note_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_important}, default, default, default) 
+   </insert>
+   
+   <!-- 첨부파일 있는 쪽지쓰기 -->
+   <insert id="write_withFile" parameterType="com.spring.groupware.jieun.model.NoteVO">
+   		insert into tbl_note(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+		   					 note_content, note_filename, note_orgfilename, note_filesize, 
+		   					 note_important, note_reservation_status, note_read_status, note_write_date)
+   		values(seq_note_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_filename}, #{note_orgfilename}, #{note_filesize}, 
+   			   #{note_important}, default, default, default) 
+   </insert> 
+   
+   <!-- 임시보관함에서 제목클릭해서 들어왔을때 첨부파일이 있는경우 쪽지테이블에 따로 insert 하기 -->
+   <insert id="writeTempFileInsert" parameterType="com.spring.groupware.jieun.model.NoteVO">
+   		insert into tbl_note(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+		   					 note_content, note_filename, note_orgfilename, note_filesize, 
+		   					 note_important, note_reservation_status, note_read_status, note_write_date)
+   		values(seq_note_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_filename}, #{note_orgfilename}, #{note_filesize}, 
+   			   #{note_important}, default, default, default) 
+   </insert>   
+
+   <!-- 보낸쪽지함 리스트 불러오기 -->
+   <select id="sendList" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteVO">
+		<if test="totalCount ==0">
+			select fk_emp_no_receive, fk_emp_name, note_title, to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+				   note_important, note_no, note_read_status, note_reservation_status, note_filename		 
+			from tbl_note
+			
+			<if test='searchType == "" and searchWord == "" '>
+				where fk_emp_no_send = #{fk_emp_no_send} and note_send_del_status != 1
+			</if>
+			
+			<if test="searchType == 'note_title'">
+				where fk_emp_no_send = #{fk_emp_no_send} and note_send_del_status != 1
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>
+	
+			<if test="searchType == 'fk_emp_name'">
+				where fk_emp_no_send = #{fk_emp_no_send} and note_send_del_status != 1
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>		
+			
+			<if test="orderType == 'fk_emp_name' " >
+				order by fk_emp_name desc
+			</if>
+			
+			<if test="orderType == 'note_title' " >
+				order by note_title desc
+			</if>
+			
+			<if test="orderType == 'note_write_date' " >
+				order by note_write_date desc
+			</if>
+			
+			<if test="orderType == null " >
+				order by note_no desc
+			</if>		
+		
+		</if>
+		
+        <if test="totalCount !=0" >
+	        select fk_emp_no_receive, fk_emp_name, note_title, note_write_date, 
+				   note_important, note_no, note_read_status, note_reservation_status, note_filename		 
+	        from 
+	        (
+	            select row_number() over ( 
+						            		<if test="orderType == 'fk_emp_name' " >
+												order by fk_emp_name desc
+											</if>
+											
+											<if test="orderType == 'note_title' " >
+												order by note_title desc
+											</if>
+											
+											<if test="orderType == 'note_write_date' " >
+												order by note_write_date desc
+											</if>
+											
+											<if test="orderType == null " >
+												order by note_no desc
+											</if>
+	           							  ) as rno,
+	                   fk_emp_no_receive, fk_emp_name, note_title, 
+	                   to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+	                   note_important, note_no, note_read_status, note_reservation_status, note_filename		 
+	            from tbl_note
+				<if test='searchType == "" and searchWord == "" '>
+					where fk_emp_no_send = #{fk_emp_no_send} and note_send_del_status != 1
+				</if>
+				
+				<if test="searchType == 'note_title'">
+					where fk_emp_no_send = #{fk_emp_no_send} and note_send_del_status != 1
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>
+		
+				<if test="searchType == 'fk_emp_name'">
+					where fk_emp_no_send = #{fk_emp_no_send} and note_send_del_status != 1
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>            
+	                   
+	        ) V 
+	        where rno between #{startRno} and #{endRno}  		
+		</if>
+   </select>
+   
+   <!-- 보낸쪽지함에서 상세 글을 볼때 -->
+   <select id="sendOneDetail" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteVO">
+		select note_no, fk_emp_no_send, E.emp_name, D.dept_name as dept_name_send, 
+               fk_emp_no_receive, fk_emp_name, 
+               (
+		            select D1.dept_name
+		            from tbl_note N1 left join tbl_employee E1
+		            on N1.fk_emp_no_receive = E1.emp_no
+		            left join tbl_dept_name D1
+		            on E1.fk_dept_no = D1.dept_no
+		            where note_no = #{note_no}
+       			) as dept_name_receive
+       			, note_title, note_content, 
+       			to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+       			note_filename, note_orgfilename, note_filesize
+		from tbl_note N left join tbl_employee E
+		on N.fk_emp_no_send = E.emp_no
+		left join tbl_dept_name D
+		on e.fk_dept_no = d.dept_no
+		where note_no = #{note_no}   
+   </select>
+   
+   <!-- 쪽지 테이블에서 삭제가 아니라 note_no에 해당하는 보낸 사원 삭제 여부(보낸쪽지함에서 삭제 여부)의 상태를 1로 변경하기 -->
+   <update id="updateFromTblNoteSendDelStatus" parameterType="HashMap">
+   		update tbl_note set note_send_del_status = 1
+		where note_no = #{note_no}    
+   </update>
+   
+   <!-- 보낸쪽지함의 쪽지 총 개수 구하기  -->
+   <select id="getNoteSendTotalCount" parameterType="HashMap" resultType="int">
+		select count(*)
+		from tbl_note
+		<if test='searchType == "" and searchWord == "" '>
+			where fk_emp_no_send = #{fk_emp_no_send} and note_send_del_status != 1
+		</if>
+		
+		<if test="searchType == 'note_title'">
+			where fk_emp_no_send = #{fk_emp_no_send} and note_send_del_status != 1
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>
+
+		<if test="searchType == 'fk_emp_name'">
+			where fk_emp_no_send = #{fk_emp_no_send} and note_send_del_status != 1
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>		
+		
+   </select>
+   
+   <!-- 받은쪽지함 리스트 불러오기 -->   
+   <select id="receiveList" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteVO">
+		<if test="totalCount == 0" >
+			select fk_emp_no_send, E.emp_name, note_title, to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date,
+			       note_no, note_filename, note_orgfilename, note_filesize, fk_emp_no_receive
+			from tbl_note N left join tbl_employee E
+			on N.fk_emp_no_send = E.emp_no
+			<if test='searchType == "" and searchWord == "" '>
+				where note_important != 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+			</if>
+			
+			<if test="searchType == 'note_title'">
+				where note_important != 1 and fk_emp_no_receive = #{fk_emp_no_receive}
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>
+	
+			<if test="searchType == 'emp_name'">
+				where note_important != 1 and fk_emp_no_receive = #{fk_emp_no_receive}
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>
+		
+			<if test="orderType == 'emp_name' " >
+				order by emp_name desc
+			</if>
+			
+			<if test="orderType == 'note_title' " >
+				order by note_title desc
+			</if>
+			
+			<if test="orderType == 'note_write_date' " >
+				order by note_write_date desc
+			</if>
+			
+			<if test="orderType == null " >
+				order by note_no desc
+			</if>	
+		
+		</if>
+		
+		<if test="totalCount != 0">
+	        select fk_emp_no_send, emp_name, note_title, note_write_date, 
+				   note_no, note_important, note_filename, note_orgfilename, note_filesize, fk_emp_no_receive		 
+	        from 
+	        (
+	            select row_number() over ( 
+											<if test="orderType == 'emp_name' " >
+												order by emp_name desc
+											</if>
+											
+											<if test="orderType == 'note_title' " >
+												order by note_title desc
+											</if>
+											
+											<if test="orderType == 'note_write_date' " >
+												order by note_write_date desc
+											</if>
+											
+											<if test="orderType == null " >
+												order by note_no desc
+											</if>	
+	           							  ) as rno,            
+						fk_emp_no_send, E.emp_name, note_title, 
+						to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date,
+			       		note_no, note_important, note_filename, note_orgfilename, note_filesize, fk_emp_no_receive
+				from tbl_note N left join tbl_employee E
+				on N.fk_emp_no_send = E.emp_no
+				<if test='searchType == "" and searchWord == "" '>
+					where note_important != 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+				</if>
+				
+				<if test="searchType == 'note_title'">
+					where note_important != 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>
+		
+				<if test="searchType == 'emp_name'">
+					where note_important != 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>            
+	                   
+	        ) V 
+	        where rno between #{startRno} and #{endRno}  			
+		</if>
+		
+   </select>
+   
+   <!-- 받은 쪽지함  리스트 개수 얻어오기 -->
+   <select id="getNoteReceiveTotalCount" parameterType="HashMap" resultType="int">
+   		select count(*)
+		from tbl_note N left join tbl_employee E
+		on N.fk_emp_no_send = E.emp_no
+		
+		<if test='searchType == "" and searchWord == "" '>
+			where note_important != 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+		</if>
+		
+		<if test="searchType == 'note_title'">
+			where note_important != 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>
+
+		<if test="searchType == 'emp_name'">
+			where note_important != 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>			
+		
+    </select>
+   
+   <!-- 받은쪽지함 리스트에서 제목 클릭 시 read_status 컬럼의 상태를 1로 바꾸기 -->
+   <update id="receiveReadCountChange" parameterType="HashMap">
+   		update tbl_note set note_read_status = 1
+		where note_no = #{note_no} 
+   </update>
+   
+   <!-- 받은쪽지에서 상세 글을 볼때 (전체 항목 조회!!!) -->
+   <select id="receiveOneDetail" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteVO">
+		<!-- 
+		select note_no, fk_emp_no_send, E.emp_name, fk_emp_no_receive, fk_emp_name, note_title, note_content, 
+			   to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date,
+			   note_filename, note_orgfilename, note_filesize			   
+		from tbl_note N left join tbl_employee E
+		on N.fk_emp_no_send = E.emp_no
+		where note_no = #{note_no}
+		-->
+		select note_no, fk_emp_no_send, E.emp_name, D.dept_name as dept_name_send, 
+               fk_emp_no_receive, fk_emp_name, 
+               (
+		            select D1.dept_name
+		            from tbl_note N1 left join tbl_employee E1
+		            on N1.fk_emp_no_receive = E1.emp_no
+		            left join tbl_dept_name D1
+		            on E1.fk_dept_no = D1.dept_no
+		            where note_no = #{note_no}
+       			) as dept_name_receive
+       			, note_title, note_content, 
+       			to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+       			note_filename, note_orgfilename, note_filesize,
+       			note_important, note_reservation_status, note_read_status, 
+       			note_reservation_date, note_send_del_status, note_receive_del_status
+		from tbl_note N left join tbl_employee E
+		on N.fk_emp_no_send = E.emp_no
+		left join tbl_dept_name D
+		on e.fk_dept_no = d.dept_no
+		where note_no = #{note_no}
+   </select>
+   
+   <!-- 받은쪽지함에서 체크한 쪽지 번호 휴지통으로 이동 시키기(이동 후에 insert 성공하면 쪽지함 테이블에서 해당 쪽지 번호 delete 예정) -->
+   <insert id="moveToTrashcan" parameterType="HashMap">
+   		<!-- insert into tbl_note_trash select * from tbl_note where note_no = #{note_no}  -->
+   		insert into tbl_note_trash(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+		   					 	   note_content, note_filename, note_orgfilename, note_filesize, note_important, 
+		   					 	   note_reservation_status, note_read_status, note_write_date, note_reservation_date, 
+		   					 	   note_send_del_status, note_receive_del_status, note_del_login_emp_no)
+   		values(seq_note_trash_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_filename}, #{note_orgfilename}, #{note_filesize}, #{note_important}, 
+   			   #{note_reservation_status}, #{note_read_status}, to_date(#{note_write_date}, 'yyyy-mm-dd hh24:mi:ss'), to_date(#{note_reservation_date}, 'yyyy-mm-dd hh24:mi:ss'), 
+   			   #{note_send_del_status}, #{note_receive_del_status}, #{note_del_login_emp_no})      
+   </insert>
+   
+   <!-- 받은쪽지함에서 체크한 쪽지 번호 휴지통으로 이동시키는데 첨부파일이 없는 경우  -->
+   <insert id="moveToTrashcanNoFile" parameterType="HashMap">
+   		insert into tbl_note_trash(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+		   					 	   note_content, note_important, 
+		   					 	   note_reservation_status, note_read_status, note_write_date, note_reservation_date, 
+		   					 	   note_send_del_status, note_receive_del_status, note_del_login_emp_no)
+   		values(seq_note_trash_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_important}, 
+   			   #{note_reservation_status}, #{note_read_status}, to_date(#{note_write_date}, 'yyyy-mm-dd hh24:mi:ss'), to_date(#{note_reservation_date}, 'yyyy-mm-dd hh24:mi:ss'), 
+   			   #{note_send_del_status}, #{note_receive_del_status}, #{note_del_login_emp_no})      
+   
+   </insert>
+   
+   <!-- 예약 임시보관테이블에서 휴지통으로 이동시키기 --> 
+   <insert id="moveToTrashcanReservation" parameterType="HashMap">
+   		insert into tbl_note_trash(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+		   					 	   note_content, note_filename, note_orgfilename, note_filesize, note_important, 
+		   					 	   note_reservation_status, note_read_status, note_write_date, note_reservation_date, 
+		   					 	   note_send_del_status, note_receive_del_status, note_del_login_emp_no)
+   		values(seq_note_trash_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_filename}, #{note_orgfilename}, #{note_filesize}, #{note_important}, 
+   			   #{note_reservation_status}, #{note_read_status}, to_date(#{note_write_date}, 'yyyy-mm-dd hh24:mi:ss'), to_date(#{note_reservation_date}, 'yyyy-mm-dd hh24:mi:ss'), 
+   			   #{note_send_del_status}, #{note_receive_del_status}, #{note_del_login_emp_no})      
+   </insert>     
+   
+   <!-- 예약임시보관함 테이블을 휴지통 테이블에 첨부파일 없는 경우 insert 하기 moveToTrashcanReservationNoFile  -->
+   <insert id="moveToTrashcanReservationNoFile" parameterType="HashMap">
+   		insert into tbl_note_trash(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+		   					 	   note_content, note_important, 
+		   					 	   note_reservation_status, note_read_status, note_write_date, note_reservation_date, 
+		   					 	   note_send_del_status, note_receive_del_status, note_del_login_emp_no)
+   		values(seq_note_trash_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_important}, 
+   			   #{note_reservation_status}, #{note_read_status}, to_date(#{note_write_date}, 'yyyy-mm-dd hh24:mi:ss'), to_date(#{note_reservation_date}, 'yyyy-mm-dd hh24:mi:ss'), 
+   			   #{note_send_del_status}, #{note_receive_del_status}, #{note_del_login_emp_no})      
+   </insert>  
+   
+   <!-- 쪽지임시보관함에서 체크한 쪽지 번호 휴지통으로 이동 시키기 -->
+   <insert id="moveToTrashcanTemp" parameterType="HashMap">
+   		insert into tbl_note_trash(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+		   					 	   note_content, note_filename, note_orgfilename, note_filesize, note_important, 
+		   					 	   note_reservation_status, note_read_status, note_write_date, note_reservation_date, 
+		   					 	   note_send_del_status, note_receive_del_status, note_del_login_emp_no)
+   		values(seq_note_trash_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_filename}, #{note_orgfilename}, #{note_filesize}, #{note_important}, 
+   			   #{note_reservation_status}, #{note_read_status}, to_date(#{note_write_date}, 'yyyy-mm-dd hh24:mi:ss'), to_date(#{note_reservation_date}, 'yyyy-mm-dd hh24:mi:ss'), 
+   			   #{note_send_del_status}, #{note_receive_del_status}, #{note_del_login_emp_no})      
+   </insert>   
+   
+   <!-- 쪽지임시보관함에서 체크한 쪽지 번호 휴지통으로 이동시키는데 첨부파일이 없는 경우  -->
+   <insert id="moveToTrashcanTempNoFile" parameterType="HashMap">
+   		insert into tbl_note_trash(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+		   					 	   note_content, note_important, 
+		   					 	   note_reservation_status, note_read_status, note_write_date, note_reservation_date, 
+		   					 	   note_send_del_status, note_receive_del_status, note_del_login_emp_no)
+   		values(seq_note_trash_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_important}, 
+   			   #{note_reservation_status}, #{note_read_status}, to_date(#{note_write_date}, 'yyyy-mm-dd hh24:mi:ss'), to_date(#{note_reservation_date}, 'yyyy-mm-dd hh24:mi:ss'), 
+   			   #{note_send_del_status}, #{note_receive_del_status}, #{note_del_login_emp_no})      
+   </insert>   
+   
+   <!-- 받은쪽지함에서 체크한 쪽지 번호를 가지고 쪽지테이블에서 delete 시키기 -->
+   <delete id="deleteFromTblNote" parameterType="HashMap">
+   		delete from tbl_note
+		where note_no = #{note_no} 
+   </delete>
+   
+   <!-- 쪽지 테이블에서 삭제가 아니라 note_no에 해당하는 받은 사원 삭제 여부의 상태를 1로 변경하기 -->
+   <update id="updateFromTblNoteReceiveDelStatus" parameterType="HashMap">
+   		update tbl_note set note_receive_del_status = 1
+		where note_no = #{note_no} 
+   </update>
+   
+   <!-- 중요쪽지함 리스트 불러오기 -->
+   <select id="importantList" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteVO">
+		<if test="totalCount == 0" > 
+			select fk_emp_no_send, E.emp_name, note_title, to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date,
+			       note_no, note_filename, note_orgfilename, note_filesize
+			from tbl_note N left join tbl_employee E
+			on N.fk_emp_no_send = E.emp_no
+			
+			<if test='searchType == "" and searchWord == "" '>
+				where note_important = 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+			</if>
+			
+			<if test="searchType == 'note_title'">
+				where note_important = 1 and fk_emp_no_receive = #{fk_emp_no_receive}
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>
+	
+			<if test="searchType == 'emp_name'">
+				where note_important = 1 and fk_emp_no_receive = #{fk_emp_no_receive}
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>			
+				
+			<if test="orderType == 'emp_name' " >
+				order by emp_name desc
+			</if>
+			
+			<if test="orderType == 'note_title' " >
+				order by note_title desc
+			</if>
+			
+			<if test="orderType == 'note_write_date' " >
+				order by note_write_date desc
+			</if>
+			
+			<if test="orderType == null " >
+				order by note_no desc
+			</if>	
+	    </if>
+	    
+		<if test="totalCount != 0" >
+	        select fk_emp_no_send, emp_name, note_title, note_write_date, 
+				   note_no, note_filename, note_orgfilename, note_filesize 
+	        from 
+	        (
+	            select row_number() over ( 
+											<if test="orderType == 'emp_name' " >
+												order by emp_name desc
+											</if>
+											
+											<if test="orderType == 'note_title' " >
+												order by note_title desc
+											</if>
+											
+											<if test="orderType == 'note_write_date' " >
+												order by note_write_date desc
+											</if>
+											
+											<if test="orderType == null " >
+												order by note_no desc
+											</if>	
+	           							  ) as rno,
+						fk_emp_no_send, E.emp_name, note_title, 
+						to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date,
+			       		note_no, note_filename, note_orgfilename, note_filesize
+				from tbl_note N left join tbl_employee E
+				on N.fk_emp_no_send = E.emp_no
+				<if test='searchType == "" and searchWord == "" '>
+					where note_important = 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+				</if>
+				
+				<if test="searchType == 'note_title'">
+					where note_important = 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>
+		
+				<if test="searchType == 'emp_name'">
+					where note_important = 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>         
+	                   
+	        ) V 
+	        where rno between #{startRno} and #{endRno} 
+        </if> 		
+		
+   </select>
+   
+   <!--  중요쪽지함의 쪽지 총 개수 구하기 -->
+   <select id="getNoteImportantTotalCount" parameterType="HashMap" resultType="int">
+		select count(*)
+		from tbl_note N left join tbl_employee E
+		on N.fk_emp_no_send = E.emp_no
+		<if test='searchType == "" and searchWord == "" '>
+			where note_important = 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+		</if>
+		
+		<if test="searchType == 'note_title'">
+			where note_important = 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>
+
+		<if test="searchType == 'emp_name'">
+			where note_important = 1 and fk_emp_no_receive = #{fk_emp_no_receive} and note_receive_del_status != 1
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>
+	</select>
+   
+   <!-- 중요쪽지함 목록에서 상세 쪽지 보기  -->
+   <select id="importantOneDetail" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteVO">
+		select note_no, fk_emp_no_send, E.emp_name, D.dept_name as dept_name_send, 
+               fk_emp_no_receive, fk_emp_name, 
+               (
+		            select D1.dept_name
+		            from tbl_note N1 left join tbl_employee E1
+		            on N1.fk_emp_no_receive = E1.emp_no
+		            left join tbl_dept_name D1
+		            on E1.fk_dept_no = D1.dept_no
+		            where note_no = #{note_no}
+       			) as dept_name_receive
+       			, note_title, note_content, 
+       			to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+       			note_filename, note_orgfilename, note_filesize
+		from tbl_note N left join tbl_employee E
+		on N.fk_emp_no_send = E.emp_no
+		left join tbl_dept_name D
+		on e.fk_dept_no = d.dept_no
+		where note_no = #{note_no} 
+   </select>
+   
+   <!-- 첨부파일 없는 쪽지임시보관함에 저장 -->
+   <insert id="writeTemp" parameterType="com.spring.groupware.jieun.model.NoteTempVO">
+   		insert into tbl_note_temp(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+   							      note_content, note_important, note_reservation_status, note_read_status, note_write_date)
+   		values(seq_note_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_important}, default, default, default) 
+   </insert>   
+   
+   <!-- 첨부파일 있는 쪽지임시보관함에 저장 -->
+   <insert id="writeTemp_withFile" parameterType="com.spring.groupware.jieun.model.NoteTempVO">
+   		insert into tbl_note_temp(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+		   					 note_content, note_filename, note_orgfilename, note_filesize, 
+		   					 note_important, note_reservation_status, note_read_status, note_write_date)
+   		values(seq_note_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_filename}, #{note_orgfilename}, #{note_filesize}, 
+   			   #{note_important}, default, default, default) 
+		
+   </insert>   
+   
+   <!-- 임시보관함 읽어오기(작성자가 임시저장한 글 조회 select) -->
+   <select id="tempList" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteTempVO">
+		
+		<if test="totalCount == 0" >
+			select fk_emp_no_receive, fk_emp_name, note_title, to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+				   note_important, note_no, note_filename, note_orgfilename, note_filesize			 
+			from tbl_note_temp
+			
+			
+			<if test='searchType == "" and searchWord == "" '>
+				where fk_emp_no_send = #{fk_emp_no_send}
+			</if>
+			
+			<if test="searchType == 'note_title'">
+				where fk_emp_no_send = #{fk_emp_no_send}
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>
+	
+			<if test="searchType == 'fk_emp_name'">
+				where fk_emp_no_send = #{fk_emp_no_send}		
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>				
+					
+			<if test="orderType == 'fk_emp_name' " >
+				order by fk_emp_name desc
+			</if>
+			
+			<if test="orderType == 'note_title' " >
+				order by note_title desc
+			</if>
+			
+			<if test="orderType == 'note_write_date' " >
+				order by note_write_date desc
+			</if>
+			
+			<if test="orderType == null " >
+				order by note_no desc
+			</if>			
+		</if>  
+		
+		<if test="totalCount != 0 ">
+	        select fk_emp_no_receive, fk_emp_name, note_title, note_write_date, 
+				   note_important, note_no, note_filename		 
+	        from 
+	        (
+	            select row_number() over ( 
+						            		<if test="orderType == 'fk_emp_name' " >
+												order by fk_emp_name desc
+											</if>
+											
+												<if test="orderType == 'note_title' " >
+												order by note_title desc
+											</if>
+											
+											<if test="orderType == 'note_write_date' " >
+												order by note_write_date desc
+											</if>
+											
+											<if test="orderType == null " >
+												order by note_no desc
+											</if>
+	           							  ) as rno,
+					 fk_emp_no_receive, fk_emp_name, note_title, to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+				     note_important, note_no, note_filename			 
+				from tbl_note_temp
+				<if test='searchType == "" and searchWord == "" '>
+					where fk_emp_no_send = #{fk_emp_no_send} 
+				</if>
+				
+				<if test="searchType == 'note_title'">
+					where fk_emp_no_send = #{fk_emp_no_send} 
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>
+		
+				<if test="searchType == 'fk_emp_name'">
+					where fk_emp_no_send = #{fk_emp_no_send} 
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>  
+	    
+	        ) V 
+	        where rno between #{startRno} and #{endRno}  
+		</if>
+		
+   </select>
+   
+   <!-- 임시보관함 리스트 개수 얻어오기 -->
+   <select id="getNoteTempTotalCount" parameterType="HashMap" resultType="int">
+		select count(*)
+		from tbl_note_temp
+		<if test='searchType == "" and searchWord == "" '>
+			where fk_emp_no_send = #{fk_emp_no_send} 
+		</if>
+		
+		<if test="searchType == 'note_title'">
+			where fk_emp_no_send = #{fk_emp_no_send} 
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>
+
+		<if test="searchType == 'fk_emp_name'">
+			where fk_emp_no_send = #{fk_emp_no_send} 
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>		
+   
+   </select>
+   
+   <!-- 휴지통 읽어오기 (로그인한 사람과 삭제사원번호 비교해서 list 보여주기) -->
+   <select id="trashList" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteTrashVO">
+   		<if test="totalCount == 0" >
+			select fk_emp_no_send, E.emp_name, fk_emp_name, fk_emp_no_receive, note_title, to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+				   note_important, note_no, note_del_login_emp_no, note_filename, note_orgfilename, note_filesize		 
+			from tbl_note_trash T left join tbl_employee E
+	        on T.fk_emp_no_send = E.emp_no
+	        
+	        
+			<if test='searchType == "" and searchWord == "" '>
+				where note_del_login_emp_no = #{fk_emp_no_receive}
+			</if>
+			
+			<if test="searchType == 'note_title'">
+				where note_del_login_emp_no = #{fk_emp_no_receive}
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>
+	
+			<if test="searchType == 'fk_emp_name'">
+				where note_del_login_emp_no = #{fk_emp_no_receive}	
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>				
+				        
+			<if test="orderType == 'fk_emp_name' " >
+				order by fk_emp_name desc
+			</if>
+			
+			<if test="orderType == 'note_title' " >
+				order by note_title desc
+			</if>
+			
+			<if test="orderType == 'note_write_date' " >
+				order by note_write_date desc
+			</if>
+			
+			<if test="orderType == null " >
+				order by note_no desc
+			</if>  		  
+		</if>
+		
+		<if test="totalCount != 0" >
+	        select 	fk_emp_no_send, emp_name, fk_emp_name, fk_emp_no_receive, note_title, 
+	        		note_write_date, note_important, note_no, note_del_login_emp_no, 
+	        		note_filename, note_orgfilename, note_filesize			 
+	        from 
+	        (
+	            select row_number() over ( 
+						            		<if test="orderType == 'fk_emp_name' " >
+												order by fk_emp_name desc
+											</if>
+											
+												<if test="orderType == 'note_title' " >
+												order by note_title desc
+											</if>
+											
+											<if test="orderType == 'note_write_date' " >
+												order by note_write_date desc
+											</if>
+											
+											<if test="orderType == null " >
+												order by note_no desc
+											</if>
+	           							  ) as rno,
+					 fk_emp_no_send, E.emp_name, fk_emp_name, fk_emp_no_receive, note_title, 
+					 to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+				     note_important, note_no, note_del_login_emp_no, 
+				     note_filename, note_orgfilename, note_filesize		 
+				from tbl_note_trash T left join tbl_employee E
+		        on T.fk_emp_no_send = E.emp_no
+				<if test='searchType == "" and searchWord == "" '>
+						where note_del_login_emp_no = #{fk_emp_no_receive}
+				</if>
+				
+				<if test="searchType == 'note_title'">
+						where note_del_login_emp_no = #{fk_emp_no_receive}
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>
+		
+				<if test="searchType == 'fk_emp_name'">
+						where note_del_login_emp_no = #{fk_emp_no_receive}
+					and ${searchType} like '%' || #{searchWord} || '%'		
+				</if>  
+	    
+	        ) V 
+	        where rno between #{startRno} and #{endRno} 		
+		</if>
+   </select>
+   
+   <!-- 휴지통 리스트 개수 얻어오기  -->
+   <select id="getNoteTrashTotalCount" parameterType="HashMap" resultType="int">
+		select count(*)
+		from tbl_note_trash
+		<if test='searchType == "" and searchWord == "" '>
+				where note_del_login_emp_no = #{fk_emp_no_receive}
+		</if>
+		
+		<if test="searchType == 'note_title'">
+				where note_del_login_emp_no = #{fk_emp_no_receive}
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>
+
+		<if test="searchType == 'fk_emp_name'">
+				where note_del_login_emp_no = #{fk_emp_no_receive}
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>   
+   </select>
+   
+   <!-- 휴지통 쪽지 상세 조회 -->
+   <select id="trashOneDetail" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteTrashVO">
+		select note_no, fk_emp_no_send, E.emp_name, D.dept_name as dept_name_send, 
+               fk_emp_no_receive, fk_emp_name, 
+               (
+		            select D1.dept_name
+		            from tbl_note_trash N1 left join tbl_employee E1
+		            on N1.fk_emp_no_receive = E1.emp_no
+		            left join tbl_dept_name D1
+		            on E1.fk_dept_no = D1.dept_no
+		            where note_no = #{note_no}
+       			) as dept_name_receive 
+				, note_title, note_content,
+				to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+       			note_filename, note_orgfilename, note_filesize,
+       			note_important, note_reservation_status, note_read_status, 
+       			to_char(note_reservation_date, 'yyyy-mm-dd hh24:mi:ss') AS note_reservation_date, 
+       			note_send_del_status, note_receive_del_status, note_del_login_emp_no	   
+		from tbl_note_trash T left join tbl_employee E
+        on T.fk_emp_no_send = E.emp_no
+		left join tbl_dept_name D
+		on e.fk_dept_no = d.dept_no
+        where note_no = #{note_no}	
+		   		
+   </select>
+   
+   <!-- 휴지통에서 삭제버튼 눌렀을때 휴지통에서 note_no를 삭제 -->
+   <delete id="deleteFromTblTrash" parameterType="HashMap">
+   		delete from tbl_note_trash
+   		where note_no = #{note_no}
+   </delete>
+   
+   <!-- 첨부파일이 없는 쪽지 예약 임시 보관테이블에 insert 하기 -->
+   <insert id="writeReservationTemp" parameterType="com.spring.groupware.jieun.model.NoteReservationTempVO">
+   		insert into tbl_note_reservationTemp(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+   							                 note_content, note_important, note_reservation_status, note_read_status, 
+   							                 note_write_date, note_reservation_date)
+   		values(seq_note_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_important}, #{note_reservation_status}, default, default, to_date(#{note_reservation_date}, 'yyyy-mm-dd hh24:mi') )    
+   </insert>
+   
+   <!-- 첨부파일이 있는 쪽지 예약 임시 보관테이블에 insert 하기 -->
+   <insert id="writeReservationTemp_withFile" parameterType="com.spring.groupware.jieun.model.NoteReservationTempVO">
+   		insert into tbl_note_reservationTemp(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+   							                 note_content, note_filename, note_orgfilename, note_filesize, 
+   							                 note_important, note_reservation_status, note_read_status, 
+   							                 note_write_date, note_reservation_date)
+   		values(seq_note_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_filename}, #{note_orgfilename}, #{note_filesize}, 
+   			   #{note_important}, #{note_reservation_status}, default, default, to_date(#{note_reservation_date}, 'yyyy-mm-dd hh24:mi') )
+   </insert>
+   
+   <!-- 예약 임시보관테이블에서 select 해오기  -->
+   <select id="getReservationTempList" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteReservationTempVO">
+
+		<if test="totalCount == 0">
+			select note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+	   			   note_content, note_filename, note_orgfilename, note_filesize, 
+	   			   note_important, note_reservation_status, note_read_status, 
+	   		       to_char(note_write_date, 'yyyy-mm-dd hh24:mi') AS note_write_date, 
+	   		       to_char(note_reservation_date, 'yyyy-mm-dd hh24:mi') AS note_reservation_date
+			from tbl_note_reservationTemp  
+			
+			<if test='searchType == "" and searchWord == "" '>
+				where fk_emp_no_send = #{fk_emp_no_send}
+			</if>
+			
+			<if test="searchType == 'note_title'">
+				where fk_emp_no_send = #{fk_emp_no_send} 
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>
+	
+			<if test="searchType == 'fk_emp_name'">
+				where fk_emp_no_send = #{fk_emp_no_send}
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>		
+			
+			<if test="orderType == 'fk_emp_name' " >
+				order by fk_emp_name desc
+			</if>
+			
+			<if test="orderType == 'note_title' " >
+				order by note_title desc
+			</if>
+			
+			<if test="orderType == 'note_write_date' " >
+				order by note_write_date desc
+			</if>
+			
+			<if test="orderType == null " >
+				order by note_no desc
+			</if>		
+		</if>
+		
+		<if test="totalCount != 0 "> 
+        select fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, note_content, 
+        	   note_write_date, note_reservation_date,
+			   note_important, note_no, note_read_status, note_reservation_status, note_filename, note_orgfilename, note_filesize		 
+        from 
+        (
+            select row_number() over ( 
+					            		<if test="orderType == 'fk_emp_name' " >
+											order by fk_emp_name desc
+										</if>
+										
+										<if test="orderType == 'note_title' " >
+											order by note_title desc
+										</if>
+										
+										<if test="orderType == 'note_write_date' " >
+											order by note_write_date desc
+										</if>
+										
+										<if test="orderType == null " >
+											order by note_no desc
+										</if>
+           							  ) as rno,
+				   note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+	   			   note_content, note_filename, note_orgfilename, note_filesize, 
+	   			   note_important, note_reservation_status, note_read_status, 
+	   		       to_char(note_write_date, 'yyyy-mm-dd hh24:mi') AS note_write_date, 
+	   		       to_char(note_reservation_date, 'yyyy-mm-dd hh24:mi') AS note_reservation_date
+			from tbl_note_reservationTemp              
+            
+			<if test='searchType == "" and searchWord == "" '>
+				where fk_emp_no_send = #{fk_emp_no_send}
+			</if>
+			
+			<if test="searchType == 'note_title'">
+				where fk_emp_no_send = #{fk_emp_no_send} 
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>
+	
+			<if test="searchType == 'fk_emp_name'">
+				where fk_emp_no_send = #{fk_emp_no_send}
+				and ${searchType} like '%' || #{searchWord} || '%'		
+			</if>            
+                   
+        ) V 
+        where rno between #{startRno} and #{endRno}  			
+		</if>
+	
+   </select>
+   
+   <!-- 예약 발송 했을떄 select 해오는 예약 임시보관함 리스트 reservationTempList -->
+   <select id="reservationTempList" resultType="com.spring.groupware.jieun.model.NoteReservationTempVO">
+			select note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+	   			   note_content, note_filename, note_orgfilename, note_filesize, 
+	   			   note_important, note_reservation_status, note_read_status, 
+	   		       to_char(note_write_date, 'yyyy-mm-dd hh24:mi') AS note_write_date, 
+	   		       to_char(note_reservation_date, 'yyyy-mm-dd hh24:mi') AS note_reservation_date
+			from tbl_note_reservationTemp  
+			order by note_no desc
+   </select>
+   
+   <!-- 예약 쪽지함 리스트 개수 얻어오기 -->
+   <select id="getNoteReservationTotalCount" parameterType="HashMap" resultType="int">
+		select count(*)
+		from tbl_note_reservationTemp
+		<if test='searchType == "" and searchWord == "" '>
+			where fk_emp_no_send = #{fk_emp_no_send}
+		</if>
+		
+		<if test="searchType == 'note_title'">
+			where fk_emp_no_send = #{fk_emp_no_send} 
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>
+
+		<if test="searchType == 'fk_emp_name'">
+			where fk_emp_no_send = #{fk_emp_no_send}
+			and ${searchType} like '%' || #{searchWord} || '%'		
+		</if>   		
+		   
+   </select>
+   
+   <!-- 예약 쪽지함(예약 임시보관함 테이블) 상세 쪽지 보기 -->
+   <select id="reservationOneDetail" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteReservationTempVO">
+		select note_no, fk_emp_no_send, E.emp_name, D.dept_name as dept_name_send, 
+               fk_emp_no_receive, fk_emp_name, 
+               (
+		            select D1.dept_name
+		            from tbl_note_reservationTemp N1 left join tbl_employee E1
+		            on N1.fk_emp_no_receive = E1.emp_no
+		            left join tbl_dept_name D1
+		            on E1.fk_dept_no = D1.dept_no
+		            where note_no = #{note_no}
+       			) as dept_name_receive 
+				, note_title, note_content,
+				to_char(note_write_date, 'yyyy-mm-dd hh24:mi') AS note_write_date, 
+       			note_filename, note_orgfilename, note_filesize,
+       			note_important, note_reservation_status, note_read_status, 
+       			to_char(note_reservation_date, 'yyyy-mm-dd hh24:mi') AS note_reservation_date,
+       			note_send_del_status, note_receive_del_status   	    	       
+		from tbl_note_reservationTemp T left join tbl_employee E
+        on T.fk_emp_no_send = E.emp_no
+		left join tbl_dept_name D
+		on e.fk_dept_no = d.dept_no
+        where note_no = #{note_no}		
+		
+   </select>
+   
+   <!-- 쪽지 테이블로 파일과 함께 예약 상태 insert 하기   --> <!--  jdbcType=VARCHAR : null 값 허용 되는 컬럼에 지정한다. jdbcType=NUMERIC : number 타입에 사용-->
+   <insert id="write_withFileAndReservation" parameterType="com.spring.groupware.jieun.model.NoteVO">
+   		insert into tbl_note(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+   							 note_content, note_filename, note_orgfilename, note_filesize, 
+   							 note_important, note_reservation_status, note_read_status, 
+   							 note_write_date)
+   		values(seq_note_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_filename}, #{note_orgfilename}, #{note_filesize}, 
+   			   #{note_important}, #{note_reservation_status}, default, default) 		    
+   </insert>
+   
+   <!-- 쪽지 테이블로 첨부 파일 없고 예약 상태 insert 하기   --> 
+   <insert id="write_withReservation" parameterType="com.spring.groupware.jieun.model.NoteVO">
+   		insert into tbl_note(note_no, fk_emp_no_send, fk_emp_no_receive, fk_emp_name, note_title, 
+   							 note_content, note_important, note_reservation_status, note_read_status, 
+   							 note_write_date)
+   		values(seq_note_no.nextval, #{fk_emp_no_send}, #{fk_emp_no_receive}, #{fk_emp_name}, #{note_title}, 
+   			   #{note_content}, #{note_important}, #{note_reservation_status}, default, default) 		    
+   </insert>
+   
+   
+   <!-- 예약 임시보관테이블에서 예약 발송이 성공되어지면 삭제하기 -->
+   <delete id="deleteFromTblReservationTemp" parameterType="string">
+   		delete from tbl_note_reservationTemp
+		where note_no = #{note_no} 
+   </delete>
+   
+   <!-- 휴지통 테이블에서 휴지통 비우기(모든 데이터 삭제)-->
+   <delete id="deleteFromTblTrashClear" parameterType="int">
+   		delete from tbl_note_trash
+   		where note_del_login_emp_no = #{note_del_login_emp_no}
+   </delete>
+   
+   <!-- 임시보관함에서 쪽지번호로 수정할 쪽지 조회해오기 (select) -->
+   <select id="writeModifySelect" parameterType="HashMap" resultType="com.spring.groupware.jieun.model.NoteTempVO">
+   		select note_no, fk_emp_no_send, E.emp_name, D.dept_name as dept_name_send, 
+               fk_emp_no_receive, fk_emp_name, 
+               (
+		            select D1.dept_name
+		            from tbl_note N1 left join tbl_employee E1
+		            on N1.fk_emp_no_receive = E1.emp_no
+		            left join tbl_dept_name D1
+		            on E1.fk_dept_no = D1.dept_no
+		            where note_no = #{note_no}
+       			) as dept_name_receive
+       			, note_title, note_content, 
+       			to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date, 
+       			note_filename, note_orgfilename, note_filesize,
+                note_important, note_reservation_status, note_read_status, 
+                to_char(note_reservation_date, 'yyyy-mm-dd hh24:mi:ss') AS note_reservation_date,
+                note_send_del_status, note_receive_del_status
+		from tbl_note_temp T left join tbl_employee E
+		on T.fk_emp_no_send = E.emp_no
+		left join tbl_dept_name D
+		on e.fk_dept_no = d.dept_no
+		where note_no = #{note_no}
+   </select>
+   
+   
+   <!-- 임시보관함리스트에서 제목  클릭시 쪽지 쓰리로 이동해서 쪽지 쓰기에 insert 해서 성공하자 마자 임시보관함의 note_no 삭제 -->
+   <delete id="deleteFromTblTemp" parameterType="HashMap">
+   		delete from tbl_note_temp 
+   		where note_no = #{note_no}
+   </delete>
+
+</mapper>

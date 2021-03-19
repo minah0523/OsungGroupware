@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="calendar">
+
+	<select id="selectSchList" parameterType="HashMap" resultType="com.spring.groupware.subin.model.ScheduleVO">
+		select schedule_no, fk_emp_no, fk_calendar_no, title, to_char(startday, 'yyyy-mm-dd hh24:mi:ss') as startday, to_char(endday, 'yyyy-mm-dd hh24:mi:ss') as endday, content, color
+		from tbl_schedule S
+		left join
+		(
+		    select calendar_no, color
+		    from tbl_my_calendar
+		) C
+		on S.fk_calendar_no = C.calendar_no
+		where fk_emp_no = #{fk_emp_no} 
+		<if test="calNoArr != null">
+			and fk_calendar_no in
+			<foreach collection="calNoArr" index="i" open="(" separator="," close=")">
+	    		'${calNoArr[i]}'
+	    	</foreach>
+    	</if>
+	</select>
+	
+	<select id="readCalList" parameterType="String" resultType="com.spring.groupware.subin.model.CalendarVO">
+		select calendar_no, fk_emp_no, name, color
+		from tbl_my_calendar
+		where fk_emp_no = #{fk_emp_no}
+		order by calendar_no
+	</select>
+	
+	<insert id="addCal" parameterType="HashMap">
+		insert into tbl_my_calendar(calendar_no, fk_emp_no, name, color)
+		values(calendar_no_seq.nextval, #{fk_emp_no}, #{name}, 'skyblue')
+	</insert>
+	
+	<update id="editCalColor" parameterType="HashMap">
+		update tbl_my_calendar set color = #{color}
+		where fk_emp_no = #{fk_emp_no} and calendar_no = #{calendar_no}
+	</update>
+	
+	<delete id="delCal" parameterType="HashMap">
+		delete from tbl_my_calendar
+		where calendar_no in
+		<foreach collection="delCalNoArr" index="i" open="(" separator="," close=")">
+    		'${delCalNoArr[i]}'
+    	</foreach>
+	</delete>
+	
+	<update id="editCalName" parameterType="HashMap">
+		update tbl_my_calendar set name = #{name}
+		where calendar_no = #{calendar_no}
+	</update>
+	
+	
+	<!-- ///////////////////////지은언니 주소록 Modal//////////////////////////////// -->
+   <!-- 해당 부서 사원리스트 불러오기 -->
+   <select id="findEmpList" parameterType="HashMap" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+      select emp_name, p.position_name, nvl(D.dept_name, ' ') as dept_name ,emp_no, E.fk_dept_no
+      from tbl_employee E left join tbl_position_sort P
+      on E.fk_position_no = P.position_no
+      left join tbl_dept_name D
+      on E.fk_dept_no = D.dept_no
+      
+      <if test="fk_dept_no != null">
+         where E.fk_dept_no = #{fk_dept_no}
+      </if>
+      
+      order by fk_position_no desc
+   </select>
+   
+   <!-- 검색어에 따른 사원리스트 불러오기 -->
+   <select id="empSearchList" parameterType="HashMap" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+      
+      select emp_name, p.position_name, nvl(D.dept_name, ' ') as dept_name ,emp_no, E.fk_dept_no
+      from tbl_employee E left join tbl_position_sort P
+      on E.fk_position_no = P.position_no
+      left join tbl_dept_name D
+      on e.fk_dept_no = d.dept_no
+      where emp_name like '%' || #{searchWord} || '%' 
+      order by fk_position_no desc
+      
+   </select>
+   <!-- ///////////////////////지은언니 주소록 Modal//////////////////////////////// -->
+	
+	<select id="fk_schedule_no" resultType="String">
+		select schedule_no_seq.nextval as seq
+		from dual
+	</select>
+	
+	<!-- (Modal) 일정 추가하기 => 일정 참석자 추가(작성자) -->
+	<insert id="insertOneAtt" parameterType="HashMap">
+		insert into tbl_schedule_attendee(fk_schedule_no, fk_emp_no, groupid)
+		values(#{seq}, #{fk_emp_no}, groupid_seq.nextval)
+	</insert>
+
+	<!-- (Modal) 일정 추가하기 -->
+	<insert id="addModalSch" parameterType="HashMap">
+		insert into tbl_schedule(schedule_no, fk_emp_no, fk_calendar_no, title, startday, endday, content)
+		values(#{seq}, #{fk_emp_no}, #{fk_calendar_no}, #{title}, to_date(#{startday},'yyyy-mm-dd hh24:mi:ss'), to_date(#{endday},'yyyy-mm-dd hh24:mi:ss'), #{content})
+	</insert>
+	
+	<!-- 일정 상세 추가하기(다수) -->
+	<insert id="addDetailSch" parameterType="HashMap">
+		insert into tbl_schedule(schedule_no, fk_emp_no, fk_calendar_no, title, startday, endday, content)
+		values(#{seq}, #{fk_emp_no}, #{fk_calendar_no}, #{title}, to_date(#{startday},'yyyy-mm-dd hh24:mi:ss'), to_date(#{endday},'yyyy-mm-dd hh24:mi:ss'), #{content})		
+	</insert>
+	
+	<!-- 일정 상세 추가하기 => 일정 참석자 추가(다수의 참가자) -->
+	<insert id="insertMultiAtt" parameterType="HashMap">
+		insert into tbl_schedule_attendee(fk_schedule_no, fk_emp_no, groupid)
+		values(#{seq}, #{fk_emp_no}, #{groupId})
+	</insert>
+	
+	<select id="selectGroupId" resultType="String">
+		select groupid_seq.nextval as groupId
+		from dual
+	</select>
+	
+	<!-- 일정번호로 일정 하나 불러오기 -->
+	<select id="selectAtd" parameterType="HashMap" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+		select emp_no, emp_name
+		from tbl_employee E right join
+		(
+		    select fk_emp_no
+		    from
+		    tbl_schedule_attendee
+		    where groupid = (select groupid
+		    from tbl_schedule_attendee
+		    where fk_schedule_no = #{schedule_no})
+		) F
+		on E.emp_no = F.fk_emp_no
+	</select>
+	
+	<!-- 일정번호로 일정 하나 불러오기 -->
+	<select id="selectOneSch" parameterType="HashMap" resultType="com.spring.groupware.subin.model.ScheduleVO">
+		select schedule_no, fk_emp_no, fk_calendar_no, title, to_char(startday, 'yyyy-mm-dd hh24:mi:ss') as startday
+		    , to_char(endday, 'yyyy-mm-dd hh24:mi:ss') as  endday
+		    , content
+		from tbl_schedule
+		where schedule_no = #{schedule_no}
+	</select>
+	
+	<!-- 삭제할 일정 번호 받아오기 -->
+	<select id="findDelSchNo" parameterType="HashMap" resultType="String">
+		select fk_schedule_no
+		from tbl_schedule_attendee
+		where groupid = (select groupid from tbl_schedule_attendee where fk_schedule_no = #{fk_schedule_no})
+	</select>
+	
+	<!-- 위에서 받은 일정번호를 삭제하기 -->
+	<delete id="delSch" parameterType="HashMap">
+		delete from tbl_schedule
+		where schedule_no in 
+    	<foreach collection="fk_schArr" index="i" open="(" separator="," close=")">
+    		'${fk_schArr[i]}'
+    	</foreach>
+	</delete>
+	
+	<!-- (수정)삭제할 참가자 groupid 받아오기 -->
+	<select id="findDelGroupid" parameterType="HashMap" resultType="String">
+		select groupid
+		from tbl_schedule_attendee
+		where groupid = (select groupid from tbl_schedule_attendee where fk_schedule_no = #{fk_schedule_no})
+	</select>
+	
+	<!-- 기존 참가자 데이터 전부 삭제 -->
+	<delete id="delGroupid" parameterType="HashMap">
+		delete
+		from tbl_schedule_attendee
+		where groupid = #{delGroupid}
+	</delete>
+	
+	<!-- 받아온 배열로 not in(받아온 배열)을 사용해서 내 캘린더에 없는 일정 받아오기 -->
+	<select id="selectNoCalSchList" parameterType="HashMap" resultType="com.spring.groupware.subin.model.ScheduleVO">
+		select schedule_no, fk_emp_no, fk_calendar_no, title, to_char(startday, 'yyyy-mm-dd hh24:mi:ss') as startday, to_char(endday, 'yyyy-mm-dd hh24:mi:ss') as endday, content, color
+		from tbl_schedule S
+		left join
+		(
+		    select calendar_no, color
+		    from tbl_my_calendar
+		) C
+		on S.fk_calendar_no = C.calendar_no
+		where fk_emp_no = #{fk_emp_no} 
+		<if test="noInvitecalArr.length != 0">
+			and fk_calendar_no not in
+			<foreach collection="noInvitecalArr" index="i" open="(" separator="," close=")">
+	    		'${noInvitecalArr[i]}'
+	    	</foreach>
+    	</if>
+	</select>
+
+
+
+
+
+</mapper>

@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="yongjin">
+
+   <!-- === 로그인 처리하기 === -->
+   <select id="loginEnd" parameterType="HashMap" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+      select emp_no, dept_name, position_name, board_grant_name, site_grant_name
+          , fk_dept_no, fk_position_no, fk_board_grant_no, fk_site_grant_no
+           , emp_name, emp_pwd, corp_phone, postcode, address, detail_address, extra_address, mobile, email, photo_route, photo_name, status
+           , to_char(firstday, 'yyyy-mm-dd') AS firstday
+      from tbl_employee E
+      left join tbl_dept_name D
+      on E.fk_dept_no = D.dept_no
+      left join tbl_position_sort P
+      on E.fk_position_no = P.position_no
+      left join tbl_board_grant B
+      on E.fk_board_grant_no = B.board_grant_no
+      left join tbl_site_grant S
+      on E.fk_site_grant_no = S.site_grant_no
+      where status = 1 and emp_no = #{emp_no} and emp_pwd = #{emp_pwd}
+   </select>
+   
+   
+   <!-- === 비밀번호 찾기 결과 보여주기 === -->
+   <select id="pwdFindEnd" parameterType="HashMap" resultType="int">
+      select count(*)
+      from tbl_employee
+      where status = 1 and emp_no = #{emp_no} and email = #{email}
+   </select>
+   
+   
+   <!-- === 임시 비밀번호를 DB 에 업데이트하기 === -->
+   <update id="certPassword" parameterType="HashMap">
+      update tbl_employee set emp_pwd = #{certPassword}
+      where emp_no = #{emp_no}
+   </update>
+   
+   
+   <!-- 접속기록 테이블에 입력하기 -->
+   <insert id="insertLoginHistory" parameterType="HashMap">
+      insert into tbl_loginhistory(fk_emp_no, emp_ip)
+      values(#{emp_no}, #{emp_ip})
+   </insert>
+   
+   
+   <!-- === 개인 주소록 count === -->
+   <select id="idv_contactsNumber" parameterType="HashMap" resultType="int">
+      select count(*)
+      from tbl_personal_book
+      where fk_emp_no = #{fk_emp_no}
+      and fk_book_part_no = #{fk_emp_no}||#{idxBook}
+      <!-- 초성 검색 -->
+      <if test='range1 != ""'>
+         <if test='range2 != ""'>
+            <![CDATA[and substr(name, 1, 1) >= #{range1} and substr(name, 1, 1) < #{range2}]]>
+         </if>
+         <if test='range2 == ""'>
+            <![CDATA[and substr(name, 1, 1) >= #{range1}]]>
+         </if>
+      </if>
+      <!-- 검색어 -->
+      <if test='contactInput != ""'>
+         and
+         (upper(name) like '%'||upper(#{contactInput})||'%'
+         or upper(dept_name) like '%'||upper(#{contactInput})||'%'
+         or upper(position_name) like '%'||upper(#{contactInput})||'%'
+         )
+      </if>
+   </select>
+   
+   
+   <!-- === 개인 주소록 목록 === -->
+   <select id="idv_contactsList" parameterType="HashMap" resultType="com.spring.groupware.yongjin.model.PersonalBookVO">
+      select book_no, book_part_name
+           , dept_name, position_name
+           , name, corp_phone, postcode, address, detail_address, extra_address, mobile, email, photo_route, photo_name, company_name, memo
+      from
+      (
+         select rownum AS rno
+             , book_no, book_part_name
+             , dept_name, position_name
+              , name, corp_phone, postcode, address, detail_address, extra_address, mobile, email, photo_route, photo_name, company_name, memo
+         from
+         (
+            select book_no, book_part_name
+                , dept_name, position_name
+                 , name, corp_phone, postcode, address, detail_address, extra_address, mobile, email, photo_route, photo_name, company_name, memo
+            from tbl_personal_book P
+            left join tbl_book_part B
+            on P.fk_book_part_no = B.book_part_no
+            where fk_emp_no = #{fk_emp_no}
+            and fk_book_part_no = #{fk_emp_no}||#{idxBook}
+            <!-- 초성 검색 -->
+            <if test='range1 != ""'>
+               <if test='range2 != ""'>
+                  <![CDATA[and substr(name, 1, 1) >= #{range1} and substr(name, 1, 1) < #{range2}]]>
+               </if>
+               <if test='range2 == ""'>
+                  <![CDATA[and substr(name, 1, 1) >= #{range1}]]>
+               </if>
+            </if>
+            <!-- 검색어 -->
+            <if test='contactInput != ""'>
+               and
+               (upper(name) like '%'||upper(#{contactInput})||'%'
+               or upper(dept_name) like '%'||upper(#{contactInput})||'%'
+               or upper(position_name) like '%'||upper(#{contactInput})||'%'
+               )
+            </if>
+            <if test="data != null and data !=''">ORDER BY
+               <choose>
+                  <when test="data eq 'name'">name</when>
+                  <when test="data eq 'position_name'">position_name</when>
+                  <otherwise>dept_name</otherwise>
+               </choose>
+               <choose>
+                  <when test="sort eq 'desc'">DESC</when>
+                  <otherwise>ASC</otherwise>
+               </choose>
+            </if>
+         ) V
+      ) A
+      <!-- EXCEL 다운 시 페이징 처리없이 전체 가져오기 -->
+      <if test='startRno != ""'>
+      where rno between #{startRno} and #{endRno}
+      </if>
+   </select>
+   
+   
+   <!-- === 개인 주소록에서 정보 상세보기 === -->
+   <select id="idv_detailContact" parameterType="String" resultType="com.spring.groupware.yongjin.model.PersonalBookVO">
+      select book_no, book_part_name
+           , dept_name, position_name
+           , name, corp_phone, postcode, address, detail_address, extra_address, mobile, email, photo_route, photo_name, company_name, memo
+      from tbl_personal_book P
+      left join tbl_book_part B
+      on P.fk_book_part_no = B.book_part_no
+      where book_no = #{book_no}
+   </select>
+   
+   
+   <!-- === 개인 주소록 상세 정보 수정하기 === -->
+   <update id="idv_detailContactRevise" parameterType="com.spring.groupware.yongjin.model.PersonalBookVO">
+      update tbl_personal_book set name = #{name}
+                           , company_name = #{company_name}
+                           , dept_name = #{dept_name}
+                           , position_name = #{position_name}
+                           , email = #{email}
+                           , mobile = #{mobile}
+                           , corp_phone = #{corp_phone}
+                           , memo = #{memo}
+                           , postcode = #{postcode}
+                           , address = #{address}
+                           , detail_address = #{detail_address}
+                           , extra_address = #{extra_address}
+      where book_no = #{book_no}
+   </update>
+   
+   
+   <!-- === 개인 주소록 상세 정보 수정하기(+파일첨부) === -->
+   <update id="idv_detailContactReviseWithFile" parameterType="com.spring.groupware.yongjin.model.PersonalBookVO">
+      update tbl_personal_book set name = #{name}
+                           , company_name = #{company_name}
+                           , dept_name = #{dept_name}
+                           , position_name = #{position_name}
+                           , email = #{email}
+                           , mobile = #{mobile}
+                           , corp_phone = #{corp_phone}
+                           , postcode = #{postcode}
+                           , address = #{address}
+                           , detail_address = #{detail_address}
+                           , extra_address = #{extra_address}
+                           , memo = #{memo}
+                           , photo_name = #{photo_name}
+      where book_no = #{book_no}
+   </update>
+   
+   
+   <!-- 기본정보 수정하기 -->
+   <update id="profileRevise" parameterType="com.spring.groupware.yongjin.model.EmployeeVO">
+      update tbl_employee set emp_name = #{emp_name}
+                       , email = #{email}
+                       , mobile = #{mobile}
+                       , postcode = #{postcode}
+                        , address = #{address}
+                        , detail_address = #{detail_address}
+                        , extra_address = #{extra_address}
+      where emp_no = #{emp_no}
+   </update>
+   
+   
+   <!-- 비밀번호 변경하기 -->
+   <update id="pwdChangeEnd" parameterType="HashMap">
+      update tbl_employee set emp_pwd = #{emp_pwd}
+      where emp_no = #{emp_no} and emp_pwd = #{before_pwd}
+   </update>
+   
+   
+   <!-- 게시판 글 목록 불러오기 -->
+   <resultMap type="HashMap" id="getIntegratedBoardMap">
+      <result property="seq" column="seq" javaType="String" />
+      <result property="title" column="title" javaType="String" />
+      <result property="writeday" column="writeday" javaType="String" />
+      <result property="writer" column="writer" javaType="String" />
+      <result property="tblname" column="tblname" javaType="String" />
+   </resultMap>
+   <select id="getIntegratedBoard" resultMap="getIntegratedBoardMap">
+      <!-- select seq, title, writeday, writer, tblname
+      from
+      (
+          select row_number() over(order by writeday desc) AS rno
+               , seq, title, writeday, writer, tblname
+          from
+          (
+              select seq, title, to_char(writeday, 'yyyy-mm-dd hh24:mi:ss') AS writeday, emp_name || ' ' || position_name AS writer, '일반게시판' AS tblname
+              from tbl_board B
+              left join tbl_employee E
+              on B.fk_emp_no = E.emp_no
+              left join tbl_position_sort P
+              on E.fk_position_no = P.position_no
+              UNION
+              select seq, title, to_char(writeday, 'yyyy-mm-dd hh24:mi:ss') AS writeday, emp_name || ' ' || position_name AS writer, '자료실' AS tblname
+              from tbl_fileboard F
+              left join tbl_employee E
+              on F.fk_emp_no = E.emp_no
+              left join tbl_position_sort P
+              on E.fk_position_no = P.position_no
+          ) A
+      ) B
+      where rno between 1 and 10 -->
+      select seq, title, writeday, writer, tblname
+      from
+      (
+           select row_number() over(order by writeday desc) AS rno
+                 , seq, title, writeday, writer, tblname
+           from
+         (
+             select seq, title, to_char(writeday, 'yyyy-mm-dd hh24:mi:ss') AS writeday, emp_name || ' ' || position_name AS writer, '일반게시판' AS tblname
+             from tbl_board B
+             left join tbl_employee E
+             on B.fk_emp_no = E.emp_no
+             left join tbl_position_sort P
+             on E.fk_position_no = P.position_no
+             UNION
+             select seq, title, to_char(writeday, 'yyyy-mm-dd hh24:mi:ss') AS writeday, emp_name || ' ' || position_name AS writer, '전사 공지' AS tblname
+             from tbl_notice N
+             left join tbl_employee E
+             on N.fk_emp_no = E.emp_no
+             left join tbl_position_sort P
+             on E.fk_position_no = P.position_no
+         ) A
+     ) B
+      where rno between 1 and 10
+   </select>   
+
+   <!-- 공지게시판 -->
+   <resultMap type="HashMap" id="getNoticeBoardMap">
+      <result property="seq" column="seq" javaType="String" />
+      <result property="title" column="title" javaType="String" />
+      <result property="content" column="content" javaType="String" />
+      <result property="writeday" column="writeday" javaType="String" />
+      <result property="writer" column="writer" javaType="String" />
+   </resultMap>
+   <select id="getNoticeBoard" resultMap="getNoticeBoardMap">
+      select seq, title, content, writeday, writer
+      from
+      (
+          select row_number() over(order by writeday desc) AS rno
+               , seq, title, content, to_char(writeday, 'yyyy-mm-dd hh24:mi:ss') AS writeday, emp_name || ' ' || position_name AS writer
+          from tbl_notice N
+          left join tbl_employee E
+          on N.fk_emp_no = E.emp_no
+          left join tbl_position_sort P
+          on E.fk_position_no = P.position_no
+      ) A
+      where rno between 1 and 10
+   </select>
+   
+   <!-- 일반게시판 글 목록 불러오기 -->
+   <resultMap type="HashMap" id="getGeneralBoardMap">
+      <result property="seq" column="seq" javaType="String" />
+      <result property="title" column="title" javaType="String" />
+      <result property="content" column="content" javaType="String" />
+      <result property="writeday" column="writeday" javaType="String" />
+      <result property="writer" column="writer" javaType="String" />
+   </resultMap>
+   <select id="getGeneralBoard" resultMap="getGeneralBoardMap">
+      select seq, title, content, writeday, writer
+      from
+      (
+          select row_number() over(order by writeday desc) AS rno
+               , seq, title, content, to_char(writeday, 'yyyy-mm-dd hh24:mi:ss') AS writeday, emp_name || ' ' || position_name AS writer
+          from tbl_board B
+          left join tbl_employee E
+          on B.fk_emp_no = E.emp_no
+          left join tbl_position_sort P
+          on E.fk_position_no = P.position_no
+      ) A
+      where rno between 1 and 10
+   </select>   
+
+   <!-- 자료게시판 -->
+   <resultMap type="HashMap" id="getFileBoardMap">
+      <result property="seq" column="seq" javaType="String" />
+      <result property="filename" column="filename" javaType="String" />
+      <result property="writeday" column="writeday" javaType="String" />
+      <result property="writer" column="writer" javaType="String" />
+   </resultMap>
+   <select id="getFileBoard" resultMap="getFileBoardMap">
+      select seq, filename, writeday, writer
+      from
+      (
+          select row_number() over(order by writeday desc) AS rno
+               , seq, filename, to_char(writeday, 'yyyy-mm-dd hh24:mi:ss') AS writeday, emp_name || ' ' || position_name AS writer
+          from tbl_fileboard F
+          left join tbl_employee E
+          on F.fk_emp_no = E.emp_no
+          left join tbl_position_sort P
+          on E.fk_position_no = P.position_no
+      ) A
+      where rno between 1 and 10
+   </select>   
+
+   
+   <!-- 받은 쪽지함, 보낸 쪽지함 목록 불러오기 -->
+   <resultMap type="HashMap" id="getReceivedAndSendNoteMap">
+      <result property="note_no" column="note_no" javaType="String" />
+      <result property="fk_emp_name_send" column="fk_emp_name_send" javaType="String" />
+      <result property="fk_emp_name_receive" column="fk_emp_name_receive" javaType="String" />
+      <result property="note_title" column="note_title" javaType="String" />
+      <result property="note_content" column="note_content" javaType="String" />
+      <result property="note_write_date" column="note_write_date" javaType="String" />
+   </resultMap>
+   <select id="getReceivedAndSendNote" parameterType="HashMap" resultMap="getReceivedAndSendNoteMap">
+      select note_no, fk_emp_name_send, fk_emp_name_receive, note_title, note_content, note_write_date
+      from
+      (
+          select row_number() over(order by note_write_date desc) AS rno
+               , note_no, E1.emp_name AS fk_emp_name_send, E2.emp_name AS fk_emp_name_receive, note_title, note_content, to_char(note_write_date, 'yyyy-mm-dd hh24:mi:ss') AS note_write_date
+          <if test='index != "4"'>
+          from tbl_note N
+          </if>
+          <if test='index == "4"'>
+          from tbl_note_temp N
+          </if>
+          left join tbl_employee E1
+          on N.fk_emp_no_send = E1.emp_no
+          left join tbl_employee E2
+          on N.fk_emp_no_receive = E2.emp_no
+          <if test='index == "1"'>
+             where note_important != 1 and fk_emp_no_receive = #{fk_emp_no} and note_receive_del_status != 1
+          </if>
+          <if test='index == "2"'>
+             where fk_emp_no_send = #{fk_emp_no} and note_send_del_status != 1
+          </if>
+          <if test='index == "3"'>
+             where note_important = 1 and fk_emp_no_receive = #{fk_emp_no} and note_receive_del_status != 1
+          </if>
+          <if test='index == "4"'>
+             where fk_emp_no_send = #{fk_emp_no} and note_send_del_status != 1
+          </if>
+      ) A
+      where rno between 1 and 10
+   </select>
+   
+   
+   <!-- 로그인 기록 불러오기 -->
+   <select id="getLoginHistory" parameterType="String" resultType="com.spring.groupware.yongjin.model.LoginHistoryVO">
+      select fk_emp_no, emp_ip, logindate
+      from
+      (
+         select row_number() over(order by logindate desc) AS rno
+             , fk_emp_no, emp_ip, to_char(logindate, 'yyyy-mm-dd hh24:mi:ss') AS logindate
+         from tbl_loginhistory
+         where fk_emp_no = #{fk_emp_no}
+      ) A
+      where rno between 1 and 10
+   </select>
+   
+   
+   <!-- 조직도 불러오기 -->
+   <select id="empList" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+      select emp_no, fk_dept_no, dept_name, position_name, board_grant_name, site_grant_name
+           , emp_name, corp_phone, postcode, address, detail_address, extra_address, mobile, email, firstday, photo_route, photo_name, status
+      from
+      (
+         select row_number() over(order by emp_name) AS rno
+             , emp_no, fk_dept_no, dept_name, position_name, board_grant_name, site_grant_name
+              , emp_name, corp_phone, postcode, address, detail_address, extra_address, mobile, email, firstday, photo_route, photo_name, status
+         from tbl_employee E
+         left join tbl_dept_name D
+         on E.fk_dept_no = D.dept_no
+         left join tbl_position_sort P
+         on E.fk_position_no = P.position_no
+         left join tbl_board_grant B
+         on E.fk_board_grant_no = B.board_grant_no
+         left join tbl_site_grant S
+         on E.fk_site_grant_no = S.site_grant_no
+      ) V
+   </select>
+   
+   <!-- 부서 불러오기 -->
+   <select id="deptList" resultType="String">
+      select dept_name
+      from tbl_dept_name
+   </select>
+   
+   
+   <!-- 로그인 기록 확인하기 -->
+   <select id="getLoginHistoryCount" parameterType="String" resultType="int">
+      select count(*)
+      from tbl_loginhistory
+      where fk_emp_no = #{emp_no}
+   </select>
+   
+   
+   <!-- 개인 주소록 추가 -->
+   <insert id="addIdvBook" parameterType="HashMap">
+      insert into tbl_book_part(book_part_no, book_part_name)
+      values(#{emp_no}||#{book_part_count}, #{book_part_name})
+   </insert>
+   
+   
+   <!-- 개인 주소록 목록 가져오기 -->
+   <resultMap type="HashMap" id="idvBookListMap">
+      <result property="book_part_no" column="book_part_no" javaType="String" />
+      <result property="book_part_name" column="book_part_name" javaType="String" />
+   </resultMap>
+   <select id="idvBookList" parameterType="HashMap" resultMap="idvBookListMap">
+      select book_part_no, book_part_name
+      from tbl_book_part
+      where substr(book_part_no, 0, 7) = #{fk_emp_no}
+      order by book_part_no asc
+   </select>
+   
+   
+   <!-- 결재 문서 수 -->
+   <select id="getElecApprovalCount" parameterType="String" resultType="int">
+     select count(*)       
+		from tbl_elec_approval
+		where(mid_approval_ok = 0 and fk_mid_approver_no = #{login_emp_no})
+		or (approval_status = 0 and fk_fin_approver_no = #{login_emp_no} and mid_approval_ok = 1)
+		or (approval_status = 0 and fk_fin_approver_no = #{login_emp_no} and fk_mid_approver_no is null)
+   </select>
+   
+   
+   <!-- 오늘 일정 수 -->
+   <select id="getScheduleCount" parameterType="String" resultType="int">
+         select count(*)
+      from tbl_schedule
+      where fk_emp_no = #{fk_emp_no}
+      <![CDATA[and sysdate >= startday and sysdate <= endday]]>
+   </select>
+   
+   
+   <!-- 주간 근무 시간 -->
+   <select id="getThisWeekWorkTime" parameterType="String" resultType="int">
+         select nvl(sum(total_worktime), 0)
+      from tbl_work_time W, 
+      (select to_char(sysdate - ((select to_char(sysdate, 'D') from dual) - 2), 'yyyy-mm-dd') AS monday
+            , to_char(sysdate - ((select to_char(sysdate, 'D') from dual) - 2) + 4, 'yyyy-mm-dd') AS friday
+      from dual) V
+      where fk_emp_no = #{fk_emp_no}
+      and regdate between monday and friday
+   </select>
+   
+   
+   <!-- ToDo 목록 -->
+   <resultMap type="HashMap" id="getToDoListMap">
+         <result property="todo_no" column="todo_no" javaType="String" />
+         <result property="fk_emp_no" column="fk_emp_no" javaType="String" />
+         <result property="subject" column="subject" javaType="String" />
+         <result property="content" column="content" javaType="String" />
+         <result property="bookmark" column="bookmark" javaType="String" />
+   </resultMap>
+   <select id="getToDoList" parameterType="String" resultMap="getToDoListMap">
+         select todo_no, fk_emp_no, subject, content, bookmark
+         from tbl_todo
+         where fk_emp_no = #{fk_emp_no}
+         order by todo_no desc
+   </select>
+   
+   
+   <!-- 개인 주소록 빠른 등록 -->
+   <insert id="idv_quickCreateContact" parameterType="com.spring.groupware.yongjin.model.PersonalBookVO">
+         insert into tbl_personal_book(book_no, fk_emp_no, fk_book_part_no, name, mobile, email)
+      values(seq_personal_book.nextval, #{fk_emp_no}, #{fk_book_part_no}, #{name}, #{mobile}, #{email})
+   </insert>
+
+</mapper>

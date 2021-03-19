@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- ======= #23. tiles 레이아웃 설정하기 ======= -->
+
+<!DOCTYPE tiles-definitions PUBLIC
+       "-//Apache Software Foundation//DTD Tiles Configuration 2.1//EN"
+       "http://tiles.apache.org/dtds/tiles-config_2_1.dtd">
+       
+<tiles-definitions>
+	<!-- === tiles 를 사용하는 레이아웃(header, content, footer) 설정 시작 === -->
+	<definition name="layout-tiles1" template="/WEB-INF/tiles/layout/layout-tiles1.jsp">
+		<put-attribute name="header" value="/WEB-INF/tiles/tile1/header.jsp" />
+		<put-attribute name="content" value="" />
+		<put-attribute name="footer" value="/WEB-INF/tiles/tile1/footer.jsp" />
+	</definition>
+	
+	<!-- name 이 content 인 본문에 대해 각각의 페이지 경로마다 아래와 같이 지정해준다. -->
+	<!-- 
+		Controller단에서 return 한 값은 뷰 리졸버 우선순위에 따라 view단으로 이동한다.
+		servlet-context.xml 에서 TilesViewResolver 를 기본 뷰 리졸버보다 선순위로 두었으므로
+		tiles-layout.xml 에서 정의한 return 값에 일치하는 경로를 찾는다.
+		마치 tile1 이 확장자인 것처럼 아래에서 정의하고 있으므로 return 값으로 department.tile1 처럼 지정하면
+		.tile1 을 따라 아래에서 맞는 형태의 value 값인 jsp 파일 경로를 content 템플릿에 넣어주고,
+		실제 view단으로 보여주는 것은 header, content, footer 를 포함한 템플릿을 보여준다.
+	-->
+	<definition name="*.tiles1" extends="layout-tiles1">
+	   <put-attribute name="content" value="/WEB-INF/views/tiles1/{1}.jsp"/> <!-- {1} ==> 첫 번째 * 위치에 만든 파일명을 가져와 해당 경로의 파일을 값으로 넣어준다. -->
+	</definition>
+	<definition name="*/*.tiles1" extends="layout-tiles1">
+	   <put-attribute name="content" value="/WEB-INF/views/tiles1/{1}/{2}.jsp"/> <!-- {1} ==> 첫 번째 * 위치의 폴더명, 두 번째 * 위치의 파일명을 가져와 해당 경로의 값으로 넣어준다. -->
+	</definition>
+	<definition name="*/*/*.tiles1" extends="layout-tiles1">
+	   <put-attribute name="content" value="/WEB-INF/views/tiles1/{1}/{2}/{3}.jsp"/>
+	</definition>
+	
+</tiles-definitions>

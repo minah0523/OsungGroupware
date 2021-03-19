@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="todo">
+
+	<!-- 할일 추가 -->
+	<insert id="addEndTodo" parameterType="HashMap">
+		insert into tbl_todo(todo_no, fk_emp_no, subject, content)
+		values(todo_no_seq.nextval, #{fk_emp_no}, #{subject}, #{content})
+	</insert>
+	
+	<!-- 할일 불러오기 -->
+	<select id="selectTodoList" parameterType="String" resultType="com.spring.groupware.subin.model.TodoVO">
+		select todo_no, fk_emp_no, subject, content, bookmark
+		from tbl_todo
+		where fk_emp_no = #{fk_emp_no}
+		order by todo_no
+	</select>
+	
+	<!-- 즐겨찾기 스위치 -->
+	<update id="switchBookmark" parameterType="HashMap">
+		update tbl_todo set
+		<if test="bookmark == 1">
+			bookmark = 0
+		</if>
+		<if test="bookmark == 0">
+			bookmark = 1
+		</if>
+		where todo_no = #{todo_no}
+	</update>
+	
+	<!-- 할일 불러오기 -->
+	<select id="selectOneTodo" parameterType="String" resultType="com.spring.groupware.subin.model.TodoVO">
+		select todo_no, fk_emp_no, subject, content, bookmark
+		from tbl_todo
+		where todo_no = #{todo_no}
+	</select>
+	
+	
+	<!-- 할일 수정 -->
+	<update id="editTodo" parameterType="HashMap">
+		update tbl_todo set subject = #{subject}, content = #{content}
+		where todo_no = #{todo_no}
+	</update>
+	
+	<!-- 즐겨찾기 불러오기 -->
+	<select id="readBookmark" parameterType="String" resultType="com.spring.groupware.subin.model.TodoVO">
+		select todo_no, fk_emp_no, subject, content, bookmark
+		from tbl_todo
+		where fk_emp_no = #{fk_emp_no} and bookmark = 1
+		order by todo_no
+	</select>
+	
+	<!-- 할일 삭제 -->
+	<select id="deleteTodo" parameterType="String">
+		delete from tbl_todo
+		where todo_no = #{todo_no}
+	</select>
+	
+	
+</mapper>

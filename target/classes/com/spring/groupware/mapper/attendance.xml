@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- ==== mapper 기본설정 ==== -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- ==== 루트 엘리먼트 & 네임스페이스 설정(프로젝트 전체내에서 유일해야 한다.) ==== -->
+<mapper namespace="attendance">
+
+<!--  !!!! 주의해야할 사항은 리턴타입이 List<E> 이더라도 resultType 은 E 으로 해야만 한다. !!!! -->
+
+
+<!-- #### 중요 #### 
+ HashMap 타입으로 매개변수를 받아온 것을 꺼내서 사용할때 
+ 1. 데이터로 사용할때는 #{key명} 이고,
+ 2. 식별자(테이블명, 컬럼명)로 사용할때는 ${key명} 이고,
+ 3. myBatis 에서 제공하는 if 엘리먼트나 choose 엘리먼트 안에서 사용할때는 
+       그냥 <if test="key명"> <when test="key명"> 으로 사용한다. 
+-->
+
+<!-- === 파라미터로 VO가 들어오면 입력해줄때 값은 #{get다음에나오는 메소드명인데 첫글자는 반드시 소문자} 으로 해준다. -->
+
+
+<!-- === #159. 글쓰기(파일첨부가 있는 글쓰기) === -->
+   <!--  <insert id="add_withFile" parameterType="com.spring.board.model.BoardVO">
+<if test='fk_seq.equals("")'>
+insert into tbl_board(seq, fk_userid, name, subject, content, pw, readCount, regDate, status, groupno, fk_seq, depthno, fileName, orgFilename, fileSize) 
+    values(boardSeq.nextval, #{fk_userid}, #{name}, #{subject}, #{content}, #{pw}, default, default, default, #{groupno}, default, default, #{fileName}, #{orgFilename}, #{fileSize})  
+    </if>
+    
+    <if test='!fk_seq.equals("")'>
+    insert into tbl_board(seq, fk_userid, name, subject, content, pw, readCount, regDate, status, groupno, fk_seq, depthno, fileName, orgFilename, fileSize)
+    values(boardSeq.nextval, #{fk_userid}, #{name}, #{subject}, #{content}, #{pw}, default, default, default, #{groupno}, #{fk_seq}, #{depthno}+1, #{fileName}, #{orgFilename}, #{fileSize})  
+</if>
+</insert> -->
+
+  <!-- == #75. 1개글 수정하기 == -->
+    <!-- <update id="edit" parameterType="com.spring.board.model.BoardVO">
+    update tbl_board set subject = #{subject}
+                       , content = #{content}
+    where seq = #{seq} and pw = #{pw} 
+    </update>
+     -->
+    
+   <!-- == #80. 1개글 삭제하기 == -->
+   <!-- <delete id="del" parameterType="HashMap">
+   delete from tbl_board
+   where seq = #{seq} and pw = #{pw}
+   </delete>
+    -->
+   
+   <!-- === #160. 파일첨부가 있는 답변형 게시판의 페이징 처리한 글목록 가져오기(검색이 있든지, 검색이 없든지 모두 다 포함한것) ===
+                          먼저 위의 #148 을 주석처리한 이후에 아래와 같이 한다.
+     -->
+    <!-- <select id="boardListSearchWithPaging" parameterType="HashMap" resultType="com.spring.board.model.BoardVO"> 
+    select seq, fk_userid, name, subject, readCount, regDate, commentCount  
+             , groupno, fk_seq, depthno 
+             , fileName 
+        from 
+(
+    select rownum AS rno
+         , seq, fk_userid, name, subject, readCount, regDate, commentCount  
+         , groupno, fk_seq, depthno 
+         , fileName   
+    from 
+    (
+        select seq, fk_userid, name, subject, readCount, 
+               to_char(regDate, 'yyyy-mm-dd hh24:mi:ss') AS regDate,
+               commentCount, 
+               groupno, fk_seq, depthno
+              ,fileName  
+        from tbl_board
+        where status = 1 
+        <if test='searchWord != ""'>
+and lower(${searchType}) like '%'|| lower(#{searchWord}) ||'%' 
+</if>
+        start with fk_seq = 0 
+        connect by prior seq = fk_seq    
+        order siblings by groupno desc, seq asc  
+    ) V 
+) T 
+where rno between #{startRno} and #{endRno} 
+</select>     -->
+
+
+	<!-- 페이징 처리한 Waiting 리스트 가져오기 (select) -->
+	<select id="waitingApprList" parameterType="HashMap" resultType="com.spring.groupware.mina.model.AttendanceVO">
+	select rno, attendance_apply_no, writeday, fk_attendance_sort_no, fk_emp_no, title, org_file_name, emp_name
+	        from 
+	(
+	    select rownum AS rno
+	         , attendance_apply_no, writeday, fk_attendance_sort_no, fk_emp_no, title, org_file_name, emp_name
+	    from 
+	    (
+	        select attendance_apply_no, 
+	               to_char(writeday, 'yyyy-mm-dd') AS writeday,
+	                fk_attendance_sort_no, fk_emp_no, title, org_file_name, emp_name
+	        from tbl_attendance_apply left join tbl_employee
+	                    on tbl_attendance_apply.fk_emp_no = tbl_employee.emp_no
+	        where 
+	                     (mid_approval_ok = 0 and fk_mid_approver_no = #{login_emp_no})
+	                    or (approval_status = 0 and fk_fin_approver_no = #{login_emp_no} and mid_approval_ok = 1)
+	                    or (approval_status = 0 and fk_fin_approver_no = #{login_emp_no} and fk_mid_approver_no is null)
+	        order by attendance_apply_no desc
+	    ) V 
+	) T 
+	where rno between #{startRno} and #{endRno} 
+	</select>
+	 
+	 
+	<!-- === 총 Waiting 게시물 건수(totalCount) 구하기  === -->
+	<select id="getTotalWaitingCount" parameterType="HashMap" resultType="int">
+		select count(*)       
+		from tbl_attendance_apply
+		where(mid_approval_ok = 0 and fk_mid_approver_no = #{login_emp_no})
+		or (approval_status = 0 and fk_fin_approver_no = #{login_emp_no} and mid_approval_ok = 1)
+		or (approval_status = 0 and fk_fin_approver_no = #{login_emp_no} and fk_mid_approver_no is null)
+	</select>
+	
+	
+	
+	
+	
+	<!-- 페이징 처리한 Processing 리스트 가져오기 (select) -->
+	<select id="processingApprList" parameterType="HashMap" resultType="com.spring.groupware.mina.model.AttendanceVO">
+	select rno, attendance_apply_no, writeday, fk_attendance_sort_no, fk_emp_no, title, org_file_name
+	        from 
+	(
+	    select rownum AS rno
+	         , attendance_apply_no, writeday, fk_attendance_sort_no, fk_emp_no, title, org_file_name
+	    from 
+	    (
+	        select attendance_apply_no, 
+	               to_char(writeday, 'yyyy-mm-dd') AS writeday,
+	                fk_attendance_sort_no, fk_emp_no, title, org_file_name
+	        from tbl_attendance_apply
+	        where approval_status = 0 and fk_emp_no = #{login_emp_no}
+	        order by attendance_apply_no desc
+	    ) V 
+	) T 
+	where rno between #{startRno} and #{endRno} 
+	</select>
+	 
+	<!-- === 총 Processing 게시물 건수(totalCount) 구하기  === -->
+	<select id="getTotalProcessingCount" parameterType="HashMap" resultType="int">
+		select count(*)       
+		from tbl_attendance_apply
+		 where approval_status = 0 and fk_emp_no = #{login_emp_no}
+	</select>
+	
+	
+	
+	<!-- 페이징 처리한 완료 리스트 가져오기 (select) -->
+	<select id="finishedApprList" parameterType="HashMap" resultType="com.spring.groupware.mina.model.AttendanceVO">
+	select rno, attendance_apply_no, writeday, fk_attendance_sort_no, fk_emp_no, title, org_file_name, approval_status
+	        from 
+	(
+	    select rownum AS rno
+	         , attendance_apply_no, writeday, fk_attendance_sort_no, fk_emp_no, title, org_file_name, approval_status
+	    from 
+	    (
+	        select attendance_apply_no, 
+	               to_char(writeday, 'yyyy-mm-dd') AS writeday,
+	                fk_attendance_sort_no, fk_emp_no, title, org_file_name, approval_status
+	        from tbl_attendance_apply
+	        where 
+	                     approval_status in (1, 2) and fk_emp_no = #{login_emp_no}
+	        order by attendance_apply_no desc
+	    ) V 
+	) T 
+	where rno between #{startRno} and #{endRno} 
+	</select>
+	 
+	 
+	<!-- === 총 완료 게시물 건수(totalCount) 구하기  === -->
+	<select id="getTotalFinishedCount" parameterType="HashMap" resultType="int">
+		select count(*)       
+		from tbl_attendance_apply
+		where approval_status in (1, 2) and fk_emp_no = #{login_emp_no}
+	</select>
+	
+	
+	<!-- 문서 1개 보여주기 -->
+	<select id="elecApprView" parameterType="String" resultType="com.spring.groupware.mina.model.AttendanceVO">
+		select attendance_apply_no, fk_attendance_sort_no, vacation_days, to_char(attendance_start_date, 'yyyy-mm-dd') AS attendance_start_date, to_char(attendance_finish_date, 'yyyy-mm-dd') AS attendance_finish_date, 
+				fk_emp_no, fk_mid_approver_no, fk_fin_approver_no, title,                 
+		        content,   contents2, contents3, contents4, server_file_name, org_file_name, file_path,          
+				mid_approval_ok, fin_approval_ok,  approval_status,   mid_approval_opinion,fin_approval_opinion,
+		  		to_char(writeday, 'yyyy-mm-dd') AS writeday, emp_name
+		from tbl_attendance_apply left join tbl_employee
+		on tbl_attendance_apply.fk_emp_no = tbl_employee.emp_no
+		where attendance_apply_no = #{attendance_apply_no}
+	</select>
+	
+	
+	<!-- 해당 부서 사원리스트 불러오기 -->
+	<select id="findEmpList" parameterType="HashMap" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+	   select emp_name, p.position_name, nvl(D.dept_name, ' ') as dept_name ,emp_no, E.fk_dept_no
+	   from tbl_employee E left join tbl_position_sort P
+	   on E.fk_position_no = P.position_no
+	   left join tbl_dept_name D
+	   on E.fk_dept_no = D.dept_no
+	   
+	   <if test="fk_dept_no != null">
+	      where E.fk_dept_no = #{fk_dept_no}
+	   </if>
+	   
+	   order by fk_position_no desc
+	</select>
+	
+	
+	<!-- 해당 부서 사원 vo 불러오기 -->
+	<select id="findEmp" parameterType="String" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+	 select emp_name, p.position_name, nvl(D.dept_name, ' ') as dept_name ,emp_no, E.fk_dept_no
+	    from tbl_employee E left join tbl_position_sort P
+	    on E.fk_position_no = P.position_no
+	    left join tbl_dept_name D
+	    on E.fk_dept_no = D.dept_no
+	    where emp_no = #{emp_no}
+	</select>
+	
+	
+	<!-- === 글쓰기(파일첨부가 없는 글쓰기) ===  -->
+	<insert id="write" parameterType="com.spring.groupware.mina.model.AttendanceVO">
+		<if test="fk_mid_approver_no!=null and fk_mid_approver_no!=''">
+		    insert into tbl_attendance_apply(attendance_apply_no, fk_attendance_sort_no, vacation_days ,attendance_start_date, attendance_finish_date, fk_emp_no, 
+							fk_mid_approver_no, fk_fin_approver_no, title, content, contents2, contents3, contents4,
+							mid_approval_ok, fin_approval_ok, approval_status, fin_approval_opinion, writeday)
+			   values( seq_attendance_no.nextval, #{fk_attendance_sort_no}, #{vacation_days}, #{attendance_start_date}, #{attendance_finish_date}, #{fk_emp_no}, 
+			   			#{fk_mid_approver_no}, #{fk_fin_approver_no},  #{title}, #{content}, #{contents2}, #{contents3}, #{contents4}, 
+					    0, 0, 0, ' ', default)  
+		</if>
+		
+		<if test="fk_mid_approver_no==null or fk_mid_approver_no ==''">
+		    insert into tbl_attendance_apply(attendance_apply_no, fk_attendance_sort_no, vacation_days ,attendance_start_date, attendance_finish_date, fk_emp_no, 
+							fk_fin_approver_no, title, content, contents2, contents3, contents4,
+							mid_approval_ok, fin_approval_ok, approval_status, fin_approval_opinion, writeday)
+			   values( seq_attendance_no.nextval, #{fk_attendance_sort_no}, #{vacation_days}, #{attendance_start_date}, #{attendance_finish_date}, #{fk_emp_no}, 
+			   			#{fk_fin_approver_no}, #{title}, #{content}, #{contents2}, #{contents3}, #{contents4}, 
+					    0, 0, 0, ' ', default)  
+		</if>
+	</insert>
+	
+	
+	<!-- === 글쓰기(파일첨부가 있는 글쓰기) === -->
+	<insert id="write_withFile" parameterType="com.spring.groupware.mina.model.AttendanceVO">
+		<if test="fk_mid_approver_no!=null and fk_mid_approver_no!=''"> 
+			 insert into tbl_attendance_apply(attendance_apply_no, fk_attendance_sort_no, vacation_days ,attendance_start_date, attendance_finish_date, fk_emp_no, 
+							fk_mid_approver_no, fk_fin_approver_no, title, content, contents2, contents3, contents4, server_file_name, org_file_name, 
+							mid_approval_ok, fin_approval_ok, approval_status, fin_approval_opinion,  writeday)
+			   values( seq_attendance_no.nextval, #{fk_attendance_sort_no}, #{vacation_days}, #{attendance_start_date}, #{attendance_finish_date}, #{fk_emp_no}, 
+			   			#{fk_mid_approver_no}, #{fk_fin_approver_no}, #{title}, #{content}, #{contents2}, #{contents3}, #{contents4}, #{server_file_name}, #{org_file_name}, 
+					    0, 0, 0, ' ', default) 
+		</if>
+		
+		<if test="fk_mid_approver_no==null or fk_mid_approver_no ==''">
+			 insert into tbl_attendance_apply(attendance_apply_no, fk_attendance_sort_no, vacation_days ,attendance_start_date, attendance_finish_date, fk_emp_no, 
+							fk_fin_approver_no, title, content, contents2, contents3, contents4, server_file_name, org_file_name, 
+							mid_approval_ok, fin_approval_ok, approval_status, fin_approval_opinion,  writeday)
+			   values( seq_attendance_no.nextval, #{fk_attendance_sort_no}, #{vacation_days}, #{attendance_start_date}, #{attendance_finish_date}, #{fk_emp_no}, 
+			   			#{fk_fin_approver_no}, #{title}, #{content}, #{contents2}, #{contents3}, #{contents4}, #{server_file_name}, #{org_file_name},
+					    0, 0, 0, ' ', default)  
+			
+		</if>
+		
+	</insert> 
+	
+		
+	<update id="confirmMidApproval" parameterType="com.spring.groupware.mina.model.AttendanceVO">	
+		update tbl_attendance_apply
+		set mid_approval_ok = 1,
+		    mid_approval_opinion = #{mid_approval_opinion}
+		where attendance_apply_no = #{attendance_apply_no}
+	</update>
+	
+	<update id="confirmFinApproval" parameterType="com.spring.groupware.mina.model.AttendanceVO">	
+		update tbl_attendance_apply
+		set fin_approval_ok = 1,
+		    approval_status = 1,
+		    fin_approval_opinion = #{fin_approval_opinion}
+		where attendance_apply_no = #{attendance_apply_no}
+	</update>
+	
+	<update id="rejectMidApproval" parameterType="com.spring.groupware.mina.model.AttendanceVO">	
+		update tbl_attendance_apply
+		set mid_approval_ok = 2,
+			approval_status = 2,
+		    mid_approval_opinion = #{mid_approval_opinion}
+		where attendance_apply_no = #{attendance_apply_no}
+	</update>
+	
+	<update id="rejectFinApproval" parameterType="com.spring.groupware.mina.model.AttendanceVO">	
+		update tbl_attendance_apply
+		set fin_approval_ok = 2,
+			approval_status = 2,
+		    fin_approval_opinion = #{fin_approval_opinion}
+		where attendance_apply_no = #{attendance_apply_no}
+	</update>
+
+  <!-- == 1개글 삭제하기 == -->
+  <delete id="delProcessing" parameterType="HashMap">
+  		delete from tbl_attendance_apply
+  		where attendance_apply_no = #{attendance_apply_no}
+  </delete>
+  
+	
+	<!-- 연차테이블 가져오기 -->
+	<select id="getVacationDays" parameterType="String" resultType="com.spring.groupware.mina.model.VacationDaysVO">
+		select vacation_no, fk_emp_no, total_vacation_days, use_vacation_days, rest_vacation_days
+		from tbl_vacation_days
+		where fk_emp_no = #{fk_emp_no}
+	</select>
+	
+	<!-- 연차 상신시 연차테이블에서 휴가개수 차감 -->
+	<update id="updateVacationDays" parameterType="com.spring.groupware.mina.model.VacationDaysVO">	
+		update tbl_vacation_days
+		set total_vacation_days = #{total_vacation_days}, 
+			use_vacation_days = #{use_vacation_days},
+			rest_vacation_days = #{rest_vacation_days}
+		where vacation_no = #{vacation_no}
+	</update>
+	
+	
+	
+	<!-- 출퇴근시간 테이블 가져오기 -->
+	<select id="getWorktimeList" parameterType="String" resultType="com.spring.groupware.mina.model.WorktimeVO">	
+		select worktime_no, fk_emp_no, to_char(regdate,'yyyy-mm-dd') as regdate, in_time, out_time, total_worktime
+		from tbl_work_time
+		where fk_emp_no = #{fk_emp_no}
+		order by regdate desc
+	</select>
+	
+	
+	<!-- 오늘자 출퇴근 있는지 확인하기 -->
+	<select id="countTodayWorktime" parameterType="String" resultType="int">
+		select count(*)
+		from tbl_work_time
+		where worktime_no=#{worktime_no}
+	</select>
+	
+
+	<!-- 출퇴근 수정하기 -->
+	<update id="updateWorktime" parameterType="com.spring.groupware.mina.model.WorktimeVO">	
+		update tbl_work_time
+		set fk_emp_no = #{fk_emp_no}, 
+		    regdate = default,
+		    in_time = #{in_time},
+		    out_time = #{out_time},
+		    total_worktime = #{total_worktime}
+		where worktime_no = #{worktime_no}
+	</update>
+
+	
+	<!-- === 출퇴근 입력하기 ===  -->
+	<insert id="insertWorktime" parameterType="com.spring.groupware.mina.model.WorktimeVO">
+		   insert into tbl_work_time(worktime_no, fk_emp_no, regdate, in_time, out_time, total_worktime) 
+		  					 values( #{worktime_no}, #{fk_emp_no}, default, #{in_time}, #{out_time}, #{total_worktime} )
+	</insert>
+	
+
+
+</mapper>
+
+

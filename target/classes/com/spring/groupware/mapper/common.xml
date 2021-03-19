@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="common">
+
+   <!-- 용진 시작 -->
+   <!-- 사원 수 count -->
+   <select id="empNumber" parameterType="HashMap" resultType="int">
+      select count(*)
+      from tbl_employee E
+      left join tbl_dept_name D
+      on E.fk_dept_no = D.dept_no
+      left join tbl_position_sort P
+      on E.fk_position_no = P.position_no
+      left join tbl_board_grant B
+      on E.fk_board_grant_no = B.board_grant_no
+      left join tbl_site_grant S
+      on E.fk_site_grant_no = S.site_grant_no
+      where 1=1
+      <!-- 초성 검색 -->
+      <if test='range1 != ""'>
+         <if test='range2 != ""'>
+            <![CDATA[and substr(emp_name, 1, 1) >= #{range1} and substr(emp_name, 1, 1) < #{range2}]]>
+         </if>
+         <if test='range2 == ""'>
+            <![CDATA[and substr(emp_name, 1, 1) >= #{range1}]]>
+         </if>
+      </if>
+      <!-- 검색어 -->
+      <if test='contactInput != ""'>
+         and
+         (upper(emp_name) like '%'||upper(#{contactInput})||'%'
+         or upper(dept_name) like '%'||upper(#{contactInput})||'%'
+         or upper(position_name) like '%'||upper(#{contactInput})||'%'
+         )
+      </if>
+   </select>
+   
+   
+   <!-- 사원 목록 -->
+   <select id="empList" parameterType="HashMap" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+      select emp_no, dept_name, position_name, board_grant_name, site_grant_name
+           , emp_name, corp_phone, postcode, address, detail_address, extra_address, mobile, email, firstday, photo_route, photo_name, status
+      from
+      (
+         select rownum AS rno
+             , emp_no, dept_name, position_name, board_grant_name, site_grant_name
+             , emp_name, corp_phone, postcode, address, detail_address, extra_address, mobile, email, firstday, photo_route, photo_name, status
+         from
+         (
+            select emp_no, dept_name, position_name, board_grant_name, site_grant_name
+                 , emp_name, corp_phone, postcode, address, detail_address, extra_address, mobile, email, firstday, photo_route, photo_name, status
+            from tbl_employee E
+            left join tbl_dept_name D
+            on E.fk_dept_no = D.dept_no
+            left join tbl_position_sort P
+            on E.fk_position_no = P.position_no
+            left join tbl_board_grant B
+            on E.fk_board_grant_no = B.board_grant_no
+            left join tbl_site_grant S
+            on E.fk_site_grant_no = S.site_grant_no
+            where 1=1
+            <!-- 초성 검색 -->
+            <if test='range1 != ""'>
+               <if test='range2 != ""'>
+                  <![CDATA[and substr(emp_name, 1, 1) >= #{range1} and substr(emp_name, 1, 1) < #{range2}]]>
+               </if>
+               <if test='range2 == ""'>
+                  <![CDATA[and substr(emp_name, 1, 1) >= #{range1}]]>
+               </if>
+            </if>
+            <!-- 검색어 -->
+            <if test='contactInput != ""'>
+               and
+               (upper(emp_name) like '%'||upper(#{contactInput})||'%'
+               or upper(dept_name) like '%'||upper(#{contactInput})||'%'
+               or upper(position_name) like '%'||upper(#{contactInput})||'%'
+               )
+            </if>
+            <if test="data != null and data !=''">ORDER BY
+               <choose>
+                  <when test="data eq 'emp_name'">emp_name</when>
+                  <when test="data eq 'position_name'">position_name</when>
+                  <otherwise>dept_name</otherwise>
+               </choose>
+               <choose>
+                  <when test="sort eq 'desc'">DESC</when>
+                  <otherwise>ASC</otherwise>
+               </choose>
+            </if>
+         ) V
+      ) A
+      <!-- EXCEL 다운 시 페이징 처리없이 전체 가져오기 -->
+      <if test='startRno != ""'>
+      where rno between #{startRno} and #{endRno}
+      </if>
+   </select>
+   
+   
+   <!-- 전사 주소록에서 사원 정보 상세보기 -->
+   <select id="detailContact" parameterType="String" resultType="com.spring.groupware.yongjin.model.EmployeeVO">
+      select emp_no, dept_name, position_name, board_grant_name, site_grant_name
+           , emp_name, emp_pwd, corp_phone, postcode, address, detail_address, extra_address, mobile, email, firstday, photo_route, photo_name, status
+      from tbl_employee E
+      left join tbl_dept_name D
+      on E.fk_dept_no = D.dept_no
+      left join tbl_position_sort P
+      on E.fk_position_no = P.position_no
+      left join tbl_board_grant B
+      on E.fk_board_grant_no = B.board_grant_no
+      left join tbl_site_grant S
+      on E.fk_site_grant_no = S.site_grant_no
+      where emp_no = #{emp_no}
+   </select>
+   <!-- 용진 끝 -->
+
+</mapper>

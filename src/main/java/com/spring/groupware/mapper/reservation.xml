@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="reservation">
+	
+	<!-- 나의 예약 목록을 읽어오는 함수 -->
+	<select id="readRsvList" parameterType="HashMap" resultType="com.spring.groupware.subin.model.ReservationVO">
+		
+		select reservation_no, fk_resource_no, fk_reservation_resource_no, fk_emp_no
+	        , S.name as Rname, RS.name as RSname
+	        , fk_emp_no, to_char(startday, 'yyyy-mm-dd hh24:mi:ss') as startday
+	        , to_char(endday, 'yyyy-mm-dd hh24:mi:ss') as endday
+	        , reason
+		from tbl_reservation V
+		left join
+		(
+		    select resource_no, name
+		    from tbl_resource_category
+		) S
+		on V.fk_resource_no = S.resource_no
+		left join
+		(
+		    select reservation_resource_no, name
+		    from tbl_reservation_resource
+		) RS
+		on V.fk_reservation_resource_no = RS.reservation_resource_no
+		where to_char(sysdate, 'yyyy-mm-dd hh24:mi:ss') &lt; to_char(endday, 'yyyy-mm-dd hh24:mi:ss')
+		and fk_emp_no = #{fk_emp_no}
+		order by reservation_no
+	</select>
+	
+	<!-- 예약 상세보기 불러오기 -->
+	<select id="readDetailRsvList" parameterType="HashMap" resultType="com.spring.groupware.subin.model.ReservationVO">
+		select reservation_no, fk_resource_no, fk_reservation_resource_no, fk_emp_no
+		        , S.name as Rname, RS.name as RSname, E.emp_name, info
+		        , fk_emp_no, to_char(startday, 'yyyy-mm-dd hh24:mi:ss') as startday
+		        , to_char(endday, 'yyyy-mm-dd hh24:mi:ss') as endday
+		        , reason
+		from tbl_reservation V
+		left join
+		(
+		    select resource_no, name
+		    from tbl_resource_category
+		) S
+		on V.fk_resource_no = S.resource_no
+		left join
+		(
+		    select reservation_resource_no, name, info
+		    from tbl_reservation_resource
+		) RS
+		on V.fk_reservation_resource_no = RS.reservation_resource_no
+		left join
+		(
+		    select emp_no, emp_name
+		    from tbl_employee
+		) E
+		on V.fk_emp_no = E.emp_no
+		where reservation_no = #{reservation_no}
+	</select>
+	
+	<!-- 예약 취소하기 -->
+	<delete id="rsvCancel" parameterType="HashMap">
+		delete from tbl_reservation
+		where reservation_no = #{reservation_no}
+	</delete>
+	
+	<!-- 예약정보 불러오기(회원번호, 자원번호로 검색) -->
+	<select id="selectRsvList" parameterType="HashMap" resultType="com.spring.groupware.subin.model.ReservationVO">
+		select reservation_no, fk_resource_no, fk_reservation_resource_no, fk_emp_no
+		        , S.name as Rname, RS.name as RSname, E.emp_name, info
+		        , fk_emp_no, to_char(startday, 'yyyy-mm-dd hh24:mi:ss') as startday
+		        , to_char(endday, 'yyyy-mm-dd hh24:mi:ss') as endday
+		        , reason
+		from tbl_reservation V
+		left join
+		(
+		    select resource_no, name
+		    from tbl_resource_category
+		) S
+		on V.fk_resource_no = S.resource_no
+		left join
+		(
+		    select reservation_resource_no, name, info
+		    from tbl_reservation_resource
+		) RS
+		on V.fk_reservation_resource_no = RS.reservation_resource_no
+		left join
+		(
+		    select emp_no, emp_name
+		    from tbl_employee
+		) E
+		on V.fk_emp_no = E.emp_no
+		where fk_reservation_resource_no = #{fk_reservation_resource_no}
+	</select>
+	
+	<!-- (modal) 예약하기 모달에 이용가능한 자원명 리스트를 select 해옴 -->
+	<select id="readRsList" resultType="com.spring.groupware.subin.model.Reservation_resourceVO">
+		select reservation_resource_no, fk_resource_no, name, info
+		from tbl_reservation_resource
+		order by reservation_resource_no
+	</select>
+	
+	<!-- 예약 테이블에 넣어줄 fk_resource_no 구해오기 -->
+	<select id="findFk_resource_no" parameterType="HashMap" resultType="String">
+		select fk_resource_no
+		from tbl_reservation_resource
+		where reservation_resource_no = #{fk_reservation_resource_no}
+	</select>
+	
+	<!-- 입력받은 일시가 중복된 날짜인지 검사 -->
+	<select id="checkOverlapRsv" parameterType="HashMap" resultType="int">
+		select count(*)
+		from 
+		(
+			SELECT reservation_no
+			FROM tbl_reservation
+			WHERE to_char(endday, 'yyyy-mm-dd hh24:mi:ss') &gt; #{startday}
+			AND to_char(startday, 'yyyy-mm-dd hh24:mi:ss') &lt; #{endday}
+			and fk_reservation_resource_no = #{fk_reservation_resource_no}
+		)
+	</select>
+	
+	<!-- (modal) 예약 테이블에 예약한 값 넣어주기 -->
+	<insert id="addModalRsv" parameterType="HashMap">
+		insert into tbl_reservation(reservation_no, fk_resource_no, fk_reservation_resource_no, fk_emp_no, startday, endday, reason)
+		values(reservation_no_seq.nextval, #{fk_resource_no} , #{fk_reservation_resource_no}, #{fk_emp_no}
+		, to_date(#{startday},'yyyy-mm-dd hh24:mi:ss'), to_date(#{endday},'yyyy-mm-dd hh24:mi:ss')
+		, #{reason})
+	</insert>
+	
+	
+	
+	
+	
+	
+	
+	
+</mapper>

@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+ 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+ 
+<mapper namespace="board">
+
+ <!--부서 이름을 select 해온다.-->
+ <resultMap type="HashMap" id="dept_no_dept_name_Map">
+ 	<result property="dept_no" 		column="dept_no" 	javaType="String" />
+ 	<result property="dept_name" 	column="dept_name" 	javaType="String" />
+ </resultMap>
+ <select id="deptNameList" resultMap="dept_no_dept_name_Map">
+	 select dept_no, dept_name
+     from tbl_dept_name
+     order by dept_no
+</select> 
+
+
+
+
+<insert id="addBoard" parameterType="com.spring.groupware.hoyeon.model.BoardVO">
+<if test='fk_seq.equals("")'> <!-- 원글이라면 -->
+insert into tbl_board(seq,fk_emp_no,fk_dept_no,title,content,name,readCount,writeDay,status,commentCount,groupno, fk_seq, depthno )
+values(board_Seq.nextval, #{fk_emp_no}, #{fk_dept_no}, #{title} , #{content}, #{name} ,default, default, default, default, #{groupno}, default, default) 
+</if>
+
+
+<if test='!fk_seq.equals("")'> <!-- 원글에 있는 답변글이라면 -->
+insert into tbl_board(seq,fk_emp_no,fk_dept_no,title,content,name,readCount,writeDay,status,commentCount,groupno,fk_seq,depthno)
+values(board_Seq.nextval, #{fk_emp_no}, #{fk_dept_no}, #{title} , #{content}, #{name} ,default, default, default, default, #{groupno}, #{fk_seq}, #{depthno}+1)    
+</if>
+
+</insert>
+
+<insert id="add_withFile" parameterType="com.spring.groupware.hoyeon.model.BoardVO">
+
+<if test='fk_seq.equals("")'> <!-- 원글이라면 -->
+insert into tbl_board(seq,fk_emp_no,fk_dept_no,title,content,name,readCount,writeDay,status,commentCount,groupno,fk_seq,depthno , fileName, orgFilename, fileSize)
+values(board_Seq.nextval, #{fk_emp_no}, #{fk_dept_no}, #{title} , #{content}, #{name} ,default, default, default, default, #{groupno}, default, default, #{fileName}, #{orgFilename}, #{fileSize}) 
+</if>
+
+
+<if test='!fk_seq.equals("")'> <!-- 원글에 있는 답변글이라면 -->
+insert into tbl_board(seq,fk_emp_no,fk_dept_no,title,content,name,readCount,writeDay,status,commentCount,groupno,fk_seq,depthno , fileName, orgFilename, fileSize)
+values(board_Seq.nextval, #{fk_emp_no}, #{fk_dept_no}, #{title} , #{content}, #{name} ,default, default, default, default, #{groupno}, #{fk_seq}, #{depthno}+1, #{fileName}, #{orgFilename}, #{fileSize})    
+</if>
+
+</insert>
+
+
+
+
+
+<!-- 총 게시글 건수 구하기 -->
+<select id="totalBoardCnt" parameterType="HashMap" resultType="int">
+	select count(*)
+	from tbl_board
+	where status=1 and fk_dept_no=#{fk_dept_no} 
+<!--검색이 있다면!-->
+	<if test='searchWord!=""'>
+	and lower(${searchType}) like '%'|| lower(#{searchWord})||'%'
+	</if>
+</select>
+
+
+
+<!-- 페이징 처리하고 검색 있어도 없어도 게시글을 불러온다.-->
+<select id="boardListSearchP" resultType="com.spring.groupware.hoyeon.model.BoardVO" parameterType="HashMap">
+
+      select seq, fk_emp_no,fk_dept_no, name, title, readCount, writeDay, commentCount  
+           , groupno, fk_seq, depthno ,  fileName    
+         from 
+		(
+             select rownum AS rno
+                     , seq, fk_emp_no, fk_dept_no, name, title, readCount, writeDay, commentCount  
+                     , groupno, fk_seq, depthno 
+                     , fileName
+            
+            from 
+                (
+                    select seq, fk_emp_no, fk_dept_no, name, title, content, readCount, 
+                           to_char(writeDay, 'yyyy-mm-dd hh24:mi:ss') AS writeDay,
+                           commentCount, 
+                           groupno, fk_seq, depthno
+                           ,fileName
+                            
+                    from tbl_board
+                    where status = 1  and fk_dept_no=#{fk_dept_no} 
+                    
+    		    <if test='searchWord != ""'>
+				 and lower (${searchType})  like '%'|| lower (#{searchWord}) ||'%' 
+				</if>
+                    
+                    start with fk_seq = 0 
+                    connect by prior seq = fk_seq    
+                    order siblings by groupno desc, seq asc  
+                 ) V
+         ) T       
+         
+         where rno between #{startRno} and #{endRno}  
+</select>
+
+
+<!-- tbl_board에서  groupno 컬럼의 최대값구하기. -->
+<select id="getGroupNoMax" resultType="int">
+		select nvl(max(groupno), 0) as groupnoMax
+		from tbl_board
+</select>
+
+<!-- 글 상세보기 -->
+  <select id="getView" parameterType="String" resultType="com.spring.groupware.hoyeon.model.BoardVO">
+		
+         select previousseq, previoussubject
+		     , seq, fk_emp_no, name, title, content, readCount,commentCount, writeDay
+		     , nextseq, nexttitle
+		     , groupno, fk_seq, depthno 
+		     , fileName, orgFilename, fileSize 
+		     ,fk_dept_no
+		from 
+		(
+		    select   lag(seq,1) over(order by seq desc) AS previousseq 
+		           , lag(title,1) over(order by seq desc) AS previoussubject
+		            
+		           , seq, fk_emp_no, name, title, content, readCount,commentCount
+		           , to_char(writeDay, 'yyyy-mm-dd hh24:mi:ss') AS writeDay
+		    
+		           , lead(seq,1) over(order by seq desc) AS nextseq 
+		           , lead(title,1) over(order by seq desc) AS nexttitle
+		           
+		           , groupno, fk_seq, depthno 
+		           , fileName, orgFilename, fileSize 
+		           ,fk_dept_no
+		    from tbl_board
+		    where status = 1
+		) V 
+		where V.seq = #{seq}	
+</select> 
+
+
+
+
+<!--  == #66. 글조회수 1증가 하기  ==  -->
+	<update id="setAddReadCount" parameterType="String">
+		update tbl_board set readCount = readCount + 1 
+		where seq = #{seq}
+	</update>
+	
+	
+	<!-- 글 수정하기 -->
+	<update id = "boardEdit" parameterType="com.spring.groupware.hoyeon.model.BoardVO">
+			update tbl_board set 
+							fk_dept_no= #{fk_dept_no}
+						   , title = #{title}
+    	                   , content = #{content}
+    	                   
+    			where seq = #{seq} 
+	</update>
+	
+	<!-- 글 삭제하기 -->
+	<delete id="boardDel" parameterType="HashMap">
+		delete from tbl_board
+		where seq = #{seq}
+	</delete>
+
+	<!-- 댓글 작성하기 -->
+	<insert id="addComment" parameterType="com.spring.groupware.hoyeon.model.CommentVO">
+		insert into tbl_comment(seq, fk_emp_no, name, content, writeDay, parentSeq, status)
+        values(commentSeq.nextval, #{fk_emp_no}, #{name}, #{content}, default, #{parentSeq}, default)
+	</insert>
+
+	<!-- 댓글 페이징처리해서 읽기-->
+	<select id="getCommentListPaging" parameterType="HashMap" resultType="com.spring.groupware.hoyeon.model.CommentVO">
+		select name, content, writeDay
+		from 
+		(
+		   select row_number() over(order by seq desc) as rno, name, content, to_char(writeDay, 'yyyy-mm-dd hh24:mi:ss') as writeDay 
+		   from tbl_comment
+		   where status = 1 and parentSeq = #{parentSeq}
+		) V
+		where rno between #{startRno} and #{endRno}
+   
+	</select>
+	
+	
+	<!-- 댓글 totalPage 알아오기-->
+    <select id="getCommentTotalCount" parameterType="HashMap" resultType="int">
+    	select count(*) 
+    	from tbl_comment
+		where status = 1 and parentSeq = #{parentSeq} 
+    </select>
+    
+    <!--tbl_board 테이블에 commentCount 컬럼의 값을 1증가(update) === -->  
+	<update id="updateCommentCount" parameterType="String">
+    	update tbl_board set commentCount = commentCount + 1 
+    	where seq = #{parentSeq}
+    </update>
+
+
+
+<!--  ////////////////////////////////////////////////////////////////////     -->
+	<!-- 파일업로드 -->
+	<insert id="add_FileUpload" parameterType="com.spring.groupware.hoyeon.model.FileVO">
+	
+		insert into tbl_FileBoard(seq ,fk_emp_no,name,writeDay,download_count,status,fileName,orgFilename,fileSize )
+		values(fileBoard_Seq.nextval,#{fk_emp_no},#{name},default,default,default,#{fileName},#{orgFilename},#{fileSize})
+		
+	</insert>
+
+
+
+	<!-- 총페이지수 -->
+	<select id="getFileTotalCount" resultType="int">
+		
+		select count(*)
+		from tbl_FileBoard
+		where status=1
+		order by seq desc
+		
+	</select>
+
+	<!--페이징처리한 파일 읽어오기  -->
+	<select id="fileListSearchWithPaging" parameterType="HashMap" resultType="com.spring.groupware.hoyeon.model.FileVO">
+	
+	  select seq, fk_emp_no , name, download_count, writeDay, orgFilename ,fileSize
+         from 
+		(
+             select rownum AS rno
+                     , seq, fk_emp_no, name, download_count, writeDay, orgFilename ,fileSize
+            
+            from 
+                (
+                    select seq, fk_emp_no, name, download_count, 
+                           to_char(writeDay, 'yyyy-mm-dd hh24:mi:ss') AS writeDay,
+                           fileSize,orgFilename
+                            
+                    from tbl_FileBoard
+                    where status = 1 
+                   order by seq desc
+                 ) V
+         ) T       
+         
+         where rno between #{startRno} and #{endRno}  
+	
+	</select>
+
+	<select id="fileboard" parameterType="String" resultType="com.spring.groupware.hoyeon.model.FileVO">
+		select  seq, fk_emp_no  ,name  ,writeDay  ,download_count ,status  ,fileName,orgFilename,fileSize 
+		from tbl_FileBoard
+		where status = 1 and seq=#{seq}
+	</select>
+	
+	
+	<!-- 삭제할 파일 이름 불러오기  -->
+	<resultMap type="HashMap" id="fileMap">
+		<result property="fileName" column="fileName" javaType="String"/>
+	</resultMap>
+
+	<select id ="fileNameList" parameterType="HashMap" resultMap="fileMap">
+		
+		select fileName
+		from tbl_FileBoard
+		
+		where status = 1 and seq in
+		
+		<foreach collection="seqArr" index='i' open="("  separator="," close=")">
+		'${seqArr[i]}'
+		</foreach>
+			</select>
+
+
+ 	<!-- 파일삭제하기 -->
+	 <delete id="fileboardDel" parameterType="HashMap">
+		delete from tbl_FileBoard
+		where status = 1 and seq in
+		
+		<foreach collection="seqArr" index='i' open="("  separator="," close=")">
+		'${seqArr[i]}'
+		</foreach>
+	</delete> 
+	
+	<update id="downloadCntUpdate" parameterType="String">
+		update tbl_FileBoard set download_count = download_count + 1 
+    	where seq = #{parentSeq} 
+	
+	</update>
+	
+	
+	<!-- 공지사항xml시작 ///////////////////////////////////////////////////////////////////////////////////////// -->
+	
+	<!-- 총 공지게시글의 개수 구하기 -->
+	<select id="totalNoticeCnt" parameterType="HashMap" resultType="int">
+	select count(*)
+	from tbl_notice
+	where status=1 
+    <!--검색이 있다면!-->
+	<if test='searchWord!=""'>
+	and lower(${searchType}) like '%'|| lower(#{searchWord})||'%'
+	</if>
+	</select>
+ 
+	 <!--  페이징 처리한 글목록 가져오기(검색을 포함한다.) -->
+ 	<select id="noticeListSearchP" resultType="com.spring.groupware.hoyeon.model.NoticeVO" parameterType="HashMap">
+
+      select seq, fk_emp_no, name, header , title, readCount, writeDay, commentCount , fileName    
+         from 
+		(
+             select rownum AS rno
+                     , seq, fk_emp_no, name, header ,  title, readCount, writeDay, commentCount , fileName
+            
+            from 
+                (
+                    select seq, fk_emp_no, name, header , title, content, readCount, 
+                           to_char(writeDay, 'yyyy-mm-dd hh24:mi:ss') AS writeDay,
+                           commentCount, fileName
+                            
+                    from tbl_notice
+                    where status = 1 
+                    
+    		    <if test='searchWord != ""'>
+				 and lower (${searchType})  like '%'|| lower (#{searchWord}) ||'%' 
+				</if>
+                 order by seq desc
+                 ) V
+         ) T       
+         
+         where rno between #{startRno} and #{endRno}  
+</select>
+ 	
+ 	<!-- 첨부파일 없는 공지글 쓰기 -->
+ 	<insert id="addNotice" parameterType="com.spring.groupware.hoyeon.model.NoticeVO">
+ 		insert into tbl_notice(seq,fk_emp_no,header,title,content,name,readCount,writeDay,status,commentCount )
+		values(board_Seq.nextval, #{fk_emp_no}, #{header}, #{title} , #{content}, #{name} ,default, default, default, default) 
+ 	</insert>
+ 	<!-- 첨부파일 있는 공지글 쓰기 -->
+	<insert id="add_withFileNotice" parameterType="com.spring.groupware.hoyeon.model.NoticeVO">
+		insert into tbl_notice(seq,fk_emp_no,header,title,content,name,readCount,writeDay,status,commentCount, fileName, orgFilename, fileSize)
+		values(board_Seq.nextval, #{fk_emp_no}, #{header}, #{title} , #{content}, #{name} ,default, default, default, default, #{fileName}, #{orgFilename}, #{fileSize}) 
+	</insert>
+	
+	
+	<!-- 공지게시글 1개 조회하기 -->
+	<select id="noticeView" resultType="com.spring.groupware.hoyeon.model.NoticeVO" parameterType="String">
+	       select previousseq, previoussubject
+		     , seq, fk_emp_no, name, header, title, content, readCount,commentCount, writeDay
+		     , nextseq, nexttitle
+		     , fileName, orgFilename, fileSize 
+		    
+		from 
+		(
+		    select   lag(seq,1) over(order by seq desc) AS previousseq 
+		           , lag(title,1) over(order by seq desc) AS previoussubject
+		            
+		           , seq, fk_emp_no, name, header,  title, content, readCount,commentCount
+		           , to_char(writeDay, 'yyyy-mm-dd hh24:mi:ss') AS writeDay
+		    
+		           , lead(seq,1) over(order by seq desc) AS nextseq 
+		           , lead(title,1) over(order by seq desc) AS nexttitle
+		          
+		           , fileName, orgFilename, fileSize 
+		          
+		    from tbl_notice
+		    where status = 1
+		) V 
+		where V.seq = #{seq}	
+	</select>
+	
+	<!-- 조회수 1 업(공지게시글)  -->
+	<update id="setNoticeReadCount">
+		update tbl_notice set readCount = readCount + 1 
+		where seq = #{seq}
+	</update>
+	
+	
+	<!-- 공지1개 수정 -->
+	<update id="noticeEdit" parameterType="com.spring.groupware.hoyeon.model.NoticeVO">
+			update tbl_notice set 
+							header= #{header}
+						   , title = #{title}
+    	                   , content = #{content}
+    	                   
+    			where seq = #{seq} 
+	</update>
+
+	<!-- 공지1개 삭제 -->
+	<delete id="noticeDel" parameterType="HashMap">
+			delete from tbl_notice
+			where seq = #{seq}
+	</delete>
+	
+	
+	<!-- 공지게시판 덧글쓰기  -->
+	<insert id="noticeAddComment"  parameterType="com.spring.groupware.hoyeon.model.NoticeCommentVO">
+		insert into tbl_notice_Comment(seq, fk_emp_no, name, content, writeDay, parentSeq, status)
+        values(commentSeq.nextval, #{fk_emp_no}, #{name}, #{content}, default, #{parentSeq}, default)
+	</insert>
+
+	<!-- 댓글 페이징처리해서 읽기-->
+	<select id="getNoticeCommentListPaging" parameterType="HashMap" resultType="com.spring.groupware.hoyeon.model.NoticeCommentVO">
+		select name, content, writeDay
+		from 
+		(
+		   select row_number() over(order by seq desc) as rno, name, content, to_char(writeDay, 'yyyy-mm-dd hh24:mi:ss') as writeDay 
+		   from tbl_notice_Comment
+		   where status = 1 and parentSeq = #{parentSeq}
+		) V
+		where rno between #{startRno} and #{endRno}
+   
+	</select>
+	
+	<!-- 댓글 totalPage 알아오기-->
+    <select id="getNoticeCommentTotalCount" parameterType="HashMap" resultType="int">
+    	select count(*) 
+    	from tbl_notice_Comment
+		where status = 1 and parentSeq = #{parentSeq} 
+    </select>
+    
+    <!--tbl_notice 테이블에 commentCount 컬럼의 값을 1증가(update) === -->  
+	<update id="updateNoticeCommentCount" parameterType="String">
+    	update tbl_notice set commentCount = commentCount + 1 
+    	where seq = #{parentSeq}
+    </update>
+
+ 
+</mapper>
